@@ -12,8 +12,9 @@
 
 ## Post-0.1.1 priorities
 
-1. Add CI on macOS and Linux for formatting, Clippy, tests, package verification,
-   and a smoke HTTP run.
+1. Add CI on macOS, Linux, and Windows for formatting, Clippy, tests, package
+   verification, and a smoke HTTP run. Windows must also verify path handling,
+   socket error recovery, and the release binary invocation from PowerShell.
 2. Publish a signed changelog and migration notes from the old internal
    `r-wrk` name to `rload`.
 3. Add replay rate control in 0.2.0: a fixed global request rate with explicit

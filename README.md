@@ -73,9 +73,10 @@ CLI or duplicate load-generation logic.
 ## Build and install
 
 The current release baseline is validated with stable Rust 1.96.1 on macOS
-arm64. The runtime uses portable Rust crates, but Linux and other targets remain
-release candidates until the same test and benchmark gates run in CI on those
-platforms.
+arm64. The runtime uses portable Rust crates, but Linux and Windows remain
+release candidates until the same test and package gates run in 0.2.0 CI on
+those platforms. Windows CI will additionally cover PowerShell invocation,
+path handling, and socket recovery.
 
 Build or install directly from this checkout:
 
