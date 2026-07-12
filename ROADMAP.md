@@ -1,140 +1,129 @@
-# Rload (r-wrk) 竞品调研、价值定位与战略路线图报告
+# Rload (r-wrk) Competitor Analysis, Strategic Positioning, and Technical Roadmap
 
-随着云原生、微服务以及高并发场景的普及，系统在生产环境下的流量往往表现出高度的动态性、突发性和异构性。传统的**静态单一接口压测**（如循环击打单个 URL）已无法真实模拟复杂生产环境下的系统瓶颈。
+As cloud-native architectures, microservices, and high-concurrency systems become ubiquitous, production traffic exhibits high dynamics, burstiness, and heterogeneity. Traditional **static single-endpoint load testing** (such as hitting a single static URL in a loop) is no longer sufficient to simulate actual bottleneck behaviors of systems under realistic production workloads.
 
-本报告对主流的负载生成器与压测工具进行深度调研，对标性能与功能，发掘 `rload` 的**核心差异化优势 (Sweet Spot)**，并为其量身定制一套极具竞争力的长期发展路线图。
+This document conducts an in-depth market research of mainstream load generators, identifies `rload`'s **unique competitive edge (Sweet Spot)**, and establishes a customized, actionable, and long-term technical roadmap.
 
 ---
 
-## 1. 压测工具竞品调研与多维对标 (Competitive Landscape)
+## 1. Competitor Landscape and Multi-Dimensional Benchmark
 
-我们选取了目前性能测试领域最具代表性的 5 个开源项目进行对比，涵盖了从“极致轻量级”到“重型全功能脚本化”的各个维度。
+We compare five of the most representative open-source load-testing tools in the industry, ranging from ultra-lightweight load engines to fully scriptable test suites.
 
-### 1.1 竞品画像
-1. **wrk / wrk2 (C 语言)**
-   * **定位**：极致吞吐的 HTTP/1.1 基准测试工具。
-   * **机制**：单线程多路复用（epoll/kqueue），基于 LuaJIT 提供脚本扩展能力。
-   * **优缺点**：性能是行业金标准，物理开销极低。但不支持原生日志回放，Lua 脚本编写门槛高，不支持 HTTP/2、gRPC 等现代协议，在 CI/CD 容器中可移植性一般。
+### 1.1 Competitor Profiles
+1. **wrk / wrk2 (C)**
+   * **Designation**: Ultra-high-throughput benchmark utility for HTTP/1.1.
+   * **Core Architecture**: Single-threaded multiplexing (epoll/kqueue), scriptable via LuaJIT.
+   * **Pros & Cons**: Industry gold standard for raw performance; extremely low resource footprint. However, it lacks native log replay capabilities, has a steep learning curve for Lua scripting, does not support modern protocols (HTTP/2, gRPC), and suffers from poor portability/reproducibility in modern CI/CD container environments.
 2. **k6 (Go / JavaScript)**
-   * **定位**：现代开发者友好的功能及负载测试平台。
-   * **机制**：通过内置 of Go 运行时（goja）为每个 Virtual User 运行独立的 JavaScript 引擎。
-   * **优缺点**：脚本体验极佳，周边生态极其繁荣，原生支持 HTTP/2、WebSockets、gRPC。但**资源消耗极其惊人**，单机无法支撑超高并发，高并发下 JS 运行时的 CPU 争抢和垃圾回收 (GC) 停顿会产生严重的测试噪声。
+   * **Designation**: Modern developer-centric load and functional testing framework.
+   * **Core Architecture**: Go runtime utilizing an embedded ES6 engine (goja) to run independent JS runtimes for each Virtual User (VU).
+   * **Pros & Cons**: Excellent scripting experience, rich ecosystem, and native support for HTTP/2, WebSockets, and gRPC. However, it suffers from **extremely heavy resource consumption**. CPU-intensive JS parsing and garbage collection (GC) pauses make single-machine scalability poor and introduce measurement noise.
 3. **Vegeta (Go)**
-   * **定位**：高精度恒定速率 (Constant Rate) 负载生成器。
-   * **机制**：Go goroutine 调度。
-   * **优缺点**：支持精准的 RPS 控流，提供可读性好的 JSON/CSV 报告和库级别调用。但不支持复杂的状态机或脚本化，多目标文件格式死板，在超高并发下受 Go GC 影响内存 footprint 偏大。
+   * **Designation**: High-precision constant rate (Constant RPS) load generator.
+   * **Core Architecture**: Goroutine-based task scheduling.
+   * **Pros & Cons**: Highly accurate rate limiting/shaping, readable output formats (JSON/CSV), and extensible Go library interface. However, it lacks support for state machines or advanced request scripting, uses rigid input schemas, and exhibits a relatively large RSS footprint under high concurrency due to Go runtime overhead.
 4. **Locust (Python)**
-   * **定位**：基于用户行为建模的分布式压测框架。
-   * **机制**：基于 Gevent 协程，支持完全用 Python 编写测试场景。
-   * **优缺点**：对业务场景的表达能力无出其右，分布式协调极强。但由于 Python 自带的性能瓶颈，**单机 RPS 上限极低**（通常单核仅数百到数千），需要极其庞大的压测机集群才能压测高并发后端。
+   * **Designation**: Distributed user-behavior modeling and load testing framework.
+   * **Core Architecture**: Gevent-based coroutine loop, allowing scenarios to be written fully in Python.
+   * **Pros & Cons**: Unparalleled expressiveness for complex business logic and robust distributed orchestration. However, due to Python's inherent execution bottlenecks, **single-machine RPS throughput is extremely low** (typically only hundreds to a few thousand RPS per core), requiring substantial agent clusters to generate massive concurrency.
 5. **Oha (Rust)**
-   * **定位**：Rust 社区新崛起的、具备炫酷终端 UI (TUI) 的简易压测工具。
-   * **机制**：基于 `tokio` 和 `reqwest` 异步生态。
-   * **优缺点**：TUI 实时展示延迟分位数，UX 体验极佳。但由于引入了庞大的 `tokio` 和 `reqwest` 堆栈，其静态 RSS 内存占用、CPU 缓存局部性相较于纯非阻塞多路复用较逊色，且不具备复杂的日志回放和流量控制逻辑。
+   * **Designation**: An interactive, Terminal UI (TUI) driven load test utility in the Rust ecosystem.
+   * **Core Architecture**: Built on top of the async tokio and reqwest stacks.
+   * **Pros & Cons**: Outstanding real-time latency percentiles visualization on the console. However, due to the heavy network and async stack, its static RSS memory footprint and CPU cache locality are less optimized compared to raw bare-metal multi-plexing, and it lacks advanced log replay and pacing features.
 
 ---
 
-### 1.2 压测工具多维对比矩阵 (Comparison Matrix)
+### 1.2 Multi-Dimensional Comparison Matrix
 
-| 对比维度 | wrk / wrk2 | k6 | Vegeta | Locust | Oha | **rload (当前)** |
+| Feature / Metric | wrk / wrk2 | k6 | Vegeta | Locust | Oha | **rload (Current)** |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **开发语言** | C | Go / JS | Go | Python | Rust | **Rust** |
-| **底层 I/O 驱动** | epoll / kqueue | epoll (Go net) | epoll (Go net) | epoll (Gevent) | Tokio Epoll | **mio (裸非阻塞 I/O)** |
-| **单机吞吐量极限** | 🥇 **极高 (数十万)** | 🥉 偏低 | 🥈 中等 | ❌ 极低 | 🥈 中等 | 🥇 **极高 (与wrk等价)** |
-| **静态内存足迹 (RSS)**| **~3.5 MiB** | > 100 MiB | > 50 MiB | > 80 MiB | > 15 MiB | 🥈 **~3.55 MiB** |
-| **原生 Nginx 日志回放**| ❌ 无 (需Lua) | ❌ 无 (需JS加载) | ❌ 无 | ❌ 无 | ❌ 无 | 🏆 **支持 (洗牌/随机/过滤)**|
-| **控制流/恒定 RPS** | 🥈 支持 (wrk2) | 🥇 极强 (Executor) | 🥇 极强 | 🥇 极强 | ❌ 无 | ⏳ **0.2.0 规划中** |
-| **现代协议支持** | ❌ 仅 HTTP/1.1 | 🥇 H2, gRPC, WS | 🥈 部分支持 | 🥈 部分支持 | 🥈 部分支持 | ❌ 仅 HTTP/1.1 |
-| **CI/CD 容器集成** | ❌ 差 (动态库依赖) | 🥈 良好 | 🥈 良好 | ❌ 差 (重量级) | 🥇 良好 | 🏆 **极佳 (单静态二进制)** |
-| **统计精准度 (CO纠正)**| 🥇 支持 | ❌ 无 | ❌ 无 | ❌ 无 | ❌ 无 | 🥇 **支持** |
+| **Language** | C | Go / JS | Go | Python | Rust | **Rust** |
+| **Core I/O Engine** | epoll / kqueue | epoll (Go net) | epoll (Go net) | epoll (Gevent) | Tokio Epoll | **mio (Bare Non-blocking I/O)** |
+| **Single-Host Throughput** | 🥇 **Extreme (100k+)** | 🥉 Low | 🥈 Medium | ❌ Very Low | 🥈 Medium | 🥇 **Extreme (wrk Parity)** |
+| **Static Memory (RSS)** | **~3.5 MiB** | > 100 MiB | > 50 MiB | > 80 MiB | > 15 MiB | 🥈 **~3.55 MiB** |
+| **Native Nginx Replay** | ❌ No (requires Lua) | ❌ No (heavy JS load) | ❌ No | ❌ No | ❌ No | 🏆 **Yes (Shuffle, Random, Filter)** |
+| **Rate Pacing (Fixed RPS)** | 🥈 Yes (wrk2 only) | 🥇 Yes (Executors) | 🥇 Yes | 🥇 Yes | ❌ No | ⏳ **Scheduled for 0.2.0** |
+| **Modern Protocols** | ❌ HTTP/1.1 Only | 🥇 H2, gRPC, WS | 🥈 Partial | 🥈 Partial | 🥈 Partial | ❌ HTTP/1.1 Only |
+| **CI/CD Friendliness** | ❌ Poor (dynamic deps) | 🥈 Good | 🥈 Good | ❌ Poor (heavyweight) | 🥇 Good | 🏆 **Excellent (Single Static Bin)** |
+| **Coordinated Omission** | 🥇 Yes | ❌ No | ❌ No | ❌ No | ❌ No | 🥇 **Yes** |
 
 ---
 
-## 2. Rload 的核心差异化价值定位 (Sweet Spot)
+## 2. Rload Strategic Positioning (The "Sweet Spot")
 
-通过对比，我们可以锁定 `rload` 的**黄金夹缝生态 (Sweet Spot)**：
+Based on the multi-dimensional analysis, `rload` occupies a highly competitive and unique niche:
 
-> **"生产环境流量超高保真度重现的『极轻量级』演练工具"**
+> **"High-fidelity production traffic reproduction with an ultra-lightweight footprint."**
 
-### 核心竞争壁垒
-1. **解决“回放重”的问题**：
-   企业希望在测试环境“回放生产流量”。但在 `k6` 或 `Locust` 中加载并解析数百万行生产 Nginx 日志，会瞬间让压测机因 JS/Python 解析器效率低下、大文本加载而发生 OOM 或 CPU 被解析逻辑占满（无法全力发送请求）。而 `rload` 拥有与 `wrk` 同级的 **C 级底层发包效率**，且重放解析开销极低（**每条日志加载仅需 248.7 字节**），是业内唯一能做到“**零性能损耗、超轻量级、大规模生产日志回放**”的工具。
-2. **极其契合云原生 CI/CD 性能回归测试**：
-   现代微服务提倡“性能测试左移”。在 GitHub Actions 或 GitLab CI 的微型 Runner 中，给开发者运行性能回归测试时，`k6` 或 `JMeter` 占用内存过高，启动慢。而 `rload` **无任何动态链接库依赖，单二进制包极小，启动时间在微秒级，RSS 内存仅需 3MB**。这意味着你可以在每次代码提交后，用最便宜的虚拟机容器在 5 秒内拉起并跑完一次高吞吐性能门禁校验。
-
----
-
-## 3. 最具发展前景的 Feature (Highly Prospecting Features)
-
-为了将 `rload` 从一个“单纯的 `wrk` 替代品”提升为“新一代云原生流量回放与混沌工程利器”，我们必须挑选出最具商业及技术价值、且技术可行的 Feature：
-
-### 1. 动态时间线流量整形与波形复原 (Timeline-based Traffic Shaping)
-* **价值**：生产环境中的请求并不是按固定速率击打的，而是有明显的波峰波谷、突发流量。能够根据 Nginx 日志中自带的原始时间戳相对 Gap 还原当时的“流量波形”，或者进行整体的速率倍增/阶梯缩放，是进行容量规划（Capacity Planning）的黄金功能。
-* **可行性**：在 `rload` 底层的 `mio` 反应堆中引入微秒级精度的时间轮（Time Wheel）或优先队列，难度中等，性能开销极小。
-
-### 2. CI/CD 自动性能门禁机制与断言声明 (Automated Performance Gating)
-* **价值**：作为极轻量、高度确定性的单二进制工具，直接支持 YAML 声明。允许用户在 CI 配置文件中编写类似：“`fail_on: p99 > 50ms || rps_drop_ratio > 5%`”。如果检测到提交的代码导致性能指标退化，直接退出非 0 状态码中断 CI 编译。
-* **可行性**：开发非常简单，只需在命令行解析中增加对配置文件及断言规则的读取，并在 `RunSummary` 输出时执行规则逻辑。
-
-### 3. HTTP/2 协议复用与连接多路复用 (HTTP/2 Connection Multiplexing)
-* **价值**：现代互联网流量 70% 以上采用 HTTP/2，微服务内部通信（gRPC）同样基于 HTTP/2。HTTP/2 允许在单个 TCP 连接内并行传输成百上千个 Stream。如果 `rload` 支持 HTTP/2，不仅能更加真实地模拟现代客户端流量，还能让压测机用更少的 Socket 端口榨干服务端。
-* **可行性**：难度较高。需要在 protocol/response.rs 之外增加一套简易的 HTTP/2 帧封装与拆包状态机。利用已有的 `rustls` 提供 TLS 支持。
-
-### 4. 实时监控指标导出 (Prometheus & OpenTelemetry Scraper)
-* **价值**：大型系统压测往往需要将压测机指标（如 RPS 曲线、Socket Error 变化、延迟分位数趋势）与服务端的 CPU/内存指标放入同一个 Grafana 看板联合展示。
-* **可行性**：在 Worker 线程合并数据的全局上下文启动一个极其轻量的、基于裸非阻塞 Socket 的 HTTP 刮取端点（Scrape Endpoint），兼容 Prometheus 协议；或异步将指标流写入 OTLp Collector。
+### Core Competitive Advantages
+1. **Zero-Overhead Production Log Replay**:
+   Engineers frequently want to replay actual production traffic in staging/UAT environments. Doing this in `k6` or `Locust` by loading millions of log rows into a JS/Python runtime consumes gigabytes of memory and burns CPU on string parsing rather than network I/O. `rload` provides C-level execution speed with an incredibly lightweight log replay loader (**merely ~248 bytes of memory growth per parsed log entry**), making it the only utility capable of massive log replay with zero performance degradation.
+2. **Perfect Fit for Cloud-Native CI/CD Performance Gates**:
+   Performance regression verification is moving left. Running heavy tools like `k6` or `JMeter` on a micro-runner container (such as GitHub Actions or GitLab CI) is slow and memory-prohibitive. `rload` compiles into a **single, dependency-free static binary with microsecond start times and a tiny 3MB baseline memory footprint**. Performance regression test jobs can be launched and completed in seconds, even on the cheapest virtualized container nodes.
 
 ---
 
-## 4. Rload 四阶段战略路线图 (Strategic Roadmap)
+## 3. High-Value Future Feature Evaluation
 
-为了科学指导 `rload` 项目向最具前景的垂直领域深挖，我们制定了以下 **4 个阶段的长期迭代蓝图**：
+To transition `rload` from a lightweight `wrk` replacement to a cloud-native traffic reproduction and chaos engineering engine, we prioritize the following high-impact features:
 
-### 阶段一：0.2.0 - 跨平台、稳定性与控流基石 (稳定性与控流)
-本阶段的目标是巩固 Rust 的跨平台优势，打通工业级高精准压测的核心基石，完全拉开与 wrk 的功能差距。
+### 1. Timeline-Based Traffic Shaping and Waveform Reproduction
+* **Value**: Production requests are not sent at constant rates; they contain peaks, troughs, and sudden spikes. Replaying traffic using the original timestamps recorded in Nginx logs (with adjustable multiplier speed, e.g. `--replay-speed 2.0`) allows engineers to conduct highly realistic capacity planning.
+* **Feasibility**: High feasibility. Implementing microsecond-level time wheels or priority queues inside the `mio` reaction loop requires moderate efforts with virtually zero CPU overhead.
 
-* **核心功能**：
-  1. **多平台 CI/CD**：在 macOS, Linux, Windows 自动化回归全量测试，确保 Windows 上的 Socket 冷却和恢复 100% 正确。
-  2. **速率控制 (Fixed Rate pacing)**：通过全局高精度时钟，支持对静态和日志重放流量进行精准控流（如恒定 10,000 RPS）。
-  3. **日志时间戳复原 (Timestamp-based Replay)**：解析 Nginx 日志中自带的时间戳相对间隔，并在重放时 1:1 复现其真实到达时间间隔，提供倍速放大器（`--replay-speed 2.0`）。
-  4. **流量阶段整形 (Burst & Stage)**：支持渐进式负载模拟（Ramp-up），允许设定“前 10 秒 500 RPS，随后 30 秒暴增至 5000 RPS 持续压测，最后 10 秒回落到 100 RPS”的阶梯式压测策略。
+### 2. CI/CD Performance Assertion Gates (`--assert`)
+* **Value**: Provides standard validation schemas in command execution or YAML configurations (e.g., `fail_on: p99 > 50ms || rps_drop_ratio > 5%`). It terminates the process with a non-zero exit code if performance falls below specified thresholds, immediately failing CI pipelines on performance regressions.
+* **Feasibility**: Very easy. Requires reading assertions from CLI/YAML and performing rule evaluations on the accumulated `RunSummary` metrics.
 
----
+### 3. HTTP/2 and Connection Multiplexing
+* **Value**: More than 70% of modern internet traffic is HTTP/2, and internal microservice communications (such as gRPC) rely heavily on it. HTTP/2 enables multiplexing hundreds of parallel streams over a single TCP connection. Supporting HTTP/2 allows `rload` to mimic modern clients accurately and generate higher load with fewer socket resources.
+* **Feasibility**: Moderate-High. Requires implementing a lightweight, zero-copy HTTP/2 frame pack/unpack state machine on top of the non-blocking TLS layers provided by `rustls`.
 
-### 阶段二：0.3.0 - 云原生 CI/CD 深度左移 (开发者赋能)
-本阶段专注于开发者在 CI 中的压测体验，强化 `rload` “快、轻、稳” 的 CI/CD 场景壁垒。
-
-* **核心功能**：
-  1. **声明式测试配置文件 (`rload.yaml`)**：
-     支持将所有的线程数、连接数、测试目标、限制条件、日志过滤 Whitelist 写入统一的 YAML 文件，直接运行 `rload -f rload.yaml`。
-  2. **智能性能断言机制 (`--assert`)**：
-     支持在 YAML 或 CLI 参数中配置指标退化熔断，例如：如果 P99 延迟突破 100ms 超过 3 秒，或者在重放中遇到了 5xx HTTP 错误计数超过总量 1%，整个压测进程自动以非 0 错误码退出并抛出退化异常，阻断 CI 流程。
-  3. **实时 Prometheus / OpenTelemetry 指标导出**：
-     在压测进行时，启动一个无损、免外部依赖的极小监控服务器，允许 Grafana 实时抓取压测机侧观测到的实时连接数、成功率与 latency 数据，打破“黑盒压测”瓶颈。
+### 4. Real-time Metric Exporting (Prometheus & OpenTelemetry)
+* **Value**: Combines client-side measurements (RPS, socket errors, latency percentiles) with server-side resource metrics (CPU/RAM) into centralized dashboards like Grafana.
+* **Feasibility**: Easy. Launching an lightweight, non-blocking Prometheus scrapable endpoint or pushing metric streams to an OTel collector adds minimal overhead to the worker coordinator.
 
 ---
 
-### 阶段三：0.4.0 - 现代微服务多协议演练 (多协议支持)
-本阶段直接解决企业在微服务内部架构（如 Spring Cloud、Dubbo 3、K8s Envoy 网格）下遇到的协议升级难题。
+## 4. Four-Phase Technical Roadmap
 
-* **核心功能**：
-  1. **HTTP/2 帧原生拆包与连接多路复用**：
-     * 开发轻量级、零拷贝的 HTTP/2 Frame 解析组件。
-     * 支持在单条物理 TCP 连接上多路复用多条逻辑流（Streams）。由于减少了物理连接反复握手的开销，可大幅提高压测吞吐量。
-  2. **gRPC 基础协议支持**：
-     * 支持读取 JSONL 格式的 gRPC 载荷，在 HTTP/2 的 Stream Frame 之上进行 `Protobuf` 的动态打包发送。
-     * 提供与 `grpcurl` 相似但超高性能的原生 gRPC 大吞吐压测能力，帮助企业在生产环境完美回放 gRPC 格式的 RPC 追踪日志。
+We establish a concrete four-phase roadmap to drive `rload` towards its target positioning:
+
+### Phase 1: v0.2.0 - Core Pacing, Stability, and Cross-Platform CI
+*Focus: Establish parity with industrial-grade traffic shaping tools and build robust cross-platform baselines.*
+
+* **Key Deliverables**:
+  1. **Cross-Platform Actions**: Deploy fully automated GitHub Actions CI/CD to build, lint, and test across macOS, Linux, and Windows (validating path syntax, socket recovery, and PowerShell execution).
+  2. **Fixed Rate Pacing (Constant RPS)**: Integrate a high-precision pacing timer to maintain steady target throughput (e.g., exactly 10,000 RPS).
+  3. **Nginx Timestamp Replay**: Parse and reproduce the relative temporal gaps between requests based on Nginx log timestamps, supporting scaling factors (e.g. `--replay-speed 0.5` or `3.0`).
+  4. **Traffic Shaping Stages (Burst & Stage)**：Support programmatic load profile configurations, e.g., "Ramp up to 1000 RPS in 10s, hold 5000 RPS for 60s, and step-down to 100 RPS".
 
 ---
 
-### 阶段四：1.0.0 - 全功能高维观测生态 (全面成型)
-最终阶段使 `rload` 具备在大型微服务混沌工程（Chaos Engineering）和性能演练中充当“核心发包引擎”的完整生态。
+### Phase 2: v0.3.0 - Declarative Tests and CI Gating
+*Focus: Empower developers with CI-native benchmarking configurations and live observability.*
 
-* **核心功能**：
-  1. **基于 TUI 的实时仪表盘 (Observability Terminal UI)**：
-     * 为 CLI 模式开发精美、自适应字符终端的 TUI。
-     * 实时绘制动态延迟直方图、吞吐量波形图、套接字读写出错频次，达到与 `oha` 媲美的极致视觉与控制体验。
-  2. **自适应目标端点推导 (Target Inference)**：
-     * 在集群混沌重放中，自动提取日志中的 `$scheme`、`$host` 等元数据，动态建立多个目标套接字，智能模拟局域网内任意微服务之间的网格重放。
-  3. **微型无依赖 Web GUI 调试面板**：
-     * 作为一个可选层（可以通过 Web 开启），实时收集并展示历次压测运行的对比图表，直接对 Nginx 日志格式或 JSONL 进行加载前的有效性微校验，极大地降低普通开发人员在配置大规模压测任务时的出错率。
+* **Key Deliverables**:
+  1. **Declarative Test Profiles (`rload.yaml`)**: Define thread counts, connections, targets, filters, and whitelists in a single, version-controlled YAML configuration file.
+  2. **Automated Gating & Assertions (`--assert`)**: Trigger build failures when performance metrics degrade. E.g., fail on P99 latency exceedance or error count ratios.
+  3. **Prometheus Scrape Endpoint**: Provide an lightweight, embedded metric server allowing Prometheus to poll live client-side throughput, error rates, and latency states in real-time during execution.
+
+---
+
+### Phase 3: v0.4.0 - Cloud-Native Multiplexed Protocols
+*Focus: Expand into modern service-mesh and cloud-native application communication protocols.*
+
+* **Key Deliverables**:
+  1. **HTTP/2 Frame Engine**: Develop a zero-copy, stream-multiplexed HTTP/2 decoder/encoder state machine over non-blocking TLS sockets.
+  2. **gRPC Stress Testing**: Support replaying structured JSONL logs as gRPC protobuf payloads over multiplexed HTTP/2 streams, enabling native gRPC performance validation.
+
+---
+
+### Phase 4: v1.0.0 - Interactive Dashboards and Target Autopilot
+*Focus: Deliver an outstanding user experience and automated deployment in chaotic target environments.*
+
+* **Key Deliverables**:
+  1. **High-Performance Terminal UI (TUI)**: Build an interactive console UI (similar to `oha`) displaying live latency histograms, real-time waveform charts, and connection statistics.
+  2. **Dynamic Target Autopilot (Target Inference)**: Automatically infer `$scheme` and `$host` headers directly from replayed logs, allowing dynamic dispatching across multiple targets in mesh networks instead of restricting load to a single target URL.
+  3. **Web-Based Case Configurator**: Deliver an optional, lightweight browser-based debugger to visually construct YAML configs, pre-check log format compatibility, and visualize historical benchmark comparisons.
