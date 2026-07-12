@@ -90,14 +90,14 @@ To transition `rload` from a lightweight `wrk` replacement to a cloud-native tra
 
 We establish a concrete four-phase roadmap to drive `rload` towards its target positioning:
 
-### Phase 1: v0.2.0 - Core Pacing, Stability, and Cross-Platform CI
+### Phase 1: v0.2.0 - Core Pacing, Stability, and Cross-Platform CI [Completed]
 *Focus: Establish parity with industrial-grade traffic shaping tools and build robust cross-platform baselines.*
 
 * **Key Deliverables**:
-  1. **Cross-Platform Actions**: Deploy fully automated GitHub Actions CI/CD to build, lint, and test across macOS, Linux, and Windows (validating path syntax, socket recovery, and PowerShell execution).
-  2. **Fixed Rate Pacing (Constant RPS)**: Integrate a high-precision pacing timer to maintain steady target throughput (e.g., exactly 10,000 RPS).
-  3. **Nginx Timestamp Replay**: Parse and reproduce the relative temporal gaps between requests based on Nginx log timestamps, supporting scaling factors (e.g. `--replay-speed 0.5` or `3.0`).
-  4. **Traffic Shaping Stages (Burst & Stage)**：Support programmatic load profile configurations, e.g., "Ramp up to 1000 RPS in 10s, hold 5000 RPS for 60s, and step-down to 100 RPS".
+  1. **[x] Cross-Platform Actions**: Deploy fully automated GitHub Actions CI/CD to build, lint, and test across macOS, Linux, and Windows (validating path syntax, socket recovery, and PowerShell execution).
+  2. **[x] Fixed Rate Pacing (Constant RPS)**: Integrate a high-precision pacing timer to maintain steady target throughput (e.g., exactly 10,000 RPS).
+  3. **[x] Nginx Timestamp Replay**: Parse and reproduce the relative temporal gaps between requests based on Nginx log timestamps, supporting scaling factors (e.g. `--replay-speed 0.5` or `3.0`).
+  4. **[x] Traffic Shaping Stages (Burst & Stage)**：Support programmatic load profile configurations, e.g., "Ramp up to 1000 RPS in 10s, hold 5000 RPS for 60s, and step-down to 100 RPS".
 
 ---
 
