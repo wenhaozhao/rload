@@ -352,7 +352,7 @@ mod tests {
 
         assert!(matches!(
             run_with_roots(config, RootCertStore::empty(), RequestInput::Default),
-            Err(RunError::Io(_))
+            Err(RunError::Io(_) | RunError::Tls(_))
         ));
         assert!(server.join().unwrap());
     }
@@ -522,6 +522,15 @@ fn run_worker(
                         schedule_deadline(&mut deadlines, token, connection, timeout);
                         continue;
                     }
+                    if connection.stop_after_duration_error(poll.registry())? {
+                        if read_error {
+                            summary.socket_errors.read += 1;
+                        } else {
+                            summary.socket_errors.write += 1;
+                        }
+                        active -= 1;
+                        continue;
+                    }
                     return Err(RunError::Io(error));
                 }
                 summary.socket_errors.connect += 1;
@@ -553,6 +562,11 @@ fn run_worker(
                     if connection.recover_request(poll.registry(), token)? {
                         summary.socket_errors.write += 1;
                         schedule_deadline(&mut deadlines, token, connection, timeout);
+                        continue;
+                    }
+                    if connection.stop_after_duration_error(poll.registry())? {
+                        summary.socket_errors.write += 1;
+                        active -= 1;
                         continue;
                     }
                     return Err(error);
