@@ -16,13 +16,19 @@
    and a smoke HTTP run.
 2. Publish a signed changelog and migration notes from the old internal
    `r-wrk` name to `rload`.
-3. Decide whether replay rate control, timestamp pacing, burst profiles, and
-   target inference belong in 0.2.0; they remain optional and unimplemented.
+3. Add optional traffic-shape controls in 0.2.0: a fixed global request rate,
+   original timestamp pacing, and configurable burst/stage rate profiles; keep
+   target inference as a separate decision. These features remain unimplemented.
 4. Keep Lua/LuaJIT out of the first release line unless a separate compatibility
    design and licensing review is approved.
 5. For 0.2.0, add tolerant access-log replay: skip unsupported methods instead of
    aborting the input, track skipped records by method and total, and include
    those counts in the final load summary and machine-readable result contract.
+6. For 0.2.0, add burst/stage traffic models that control send rate over time
+   (for example, a baseline rate followed by a timed spike and recovery). Keep
+   this independent from request selection order: sequential, shuffle, and
+   random determine which request is selected, while burst profiles determine
+   when requests are sent.
 
 ## Deferred follow-up work
 

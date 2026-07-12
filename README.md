@@ -58,7 +58,7 @@ result is intentionally called out rather than rounded into a pass.
 | Nginx access-log replay | No native mode | Yes; common/combined logs, `GET`/`HEAD`, sequential/shuffle/random order; unsupported-method skipping planned for 0.2.0 |
 | JSONL request replay | No native mode | Yes; methods, headers, UTF-8 bodies, and per-record limits |
 | Replay seed and method/URI whitelists | No native mode | Yes; deterministic seed plus intersection filters |
-| Replay frequency/timestamp pacing/burst profiles | Custom scripting only | Planned optional features, not implemented yet |
+| Replay frequency/timestamp pacing/burst profiles | Custom scripting only | Planned 0.2.0 features, not implemented yet |
 | Automatic target inference from access-log entries | No native mode | Planned optional feature; target URL is currently explicit |
 
 The result is intentionally a wrk-compatible load generator rather than a
@@ -186,9 +186,15 @@ of the current implementation or acceptance scope:
 
 - replay frequency control with a fixed global request rate;
 - original access-log timestamp pacing and playback-speed scaling;
-- per-stage or burst rate profiles.
+- per-stage or burst rate profiles, such as a baseline rate followed by a timed
+  spike and recovery;
 - optional `--target` syntax and target inference for custom Nginx log formats
   that explicitly record scheme, host, and port.
+
+Burst profiles control when requests are sent and are independent of replay
+selection order. `sequential`, `shuffle`, and `random` choose which request is
+selected; a burst/stage profile controls the rate at which selected requests
+are issued.
 
 Until one of these optional modes is implemented, access-log replay remains a
 maximum-throughput workload: each connection sends its next request as soon as
