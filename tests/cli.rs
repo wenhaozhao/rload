@@ -255,6 +255,61 @@ fn cli_accepts_seeded_random_replay() {
 }
 
 #[test]
+fn cli_limits_replay_to_global_request_rate() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        for _ in 0..3 {
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                let mut byte = [0];
+                stream.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        }
+    });
+    let path = env::temp_dir().join(format!("rload-rate-{}.log", std::process::id()));
+    fs::write(&path, "127.0.0.1 - - [date] \"GET /rate HTTP/1.1\" 200 0\n").unwrap();
+
+    let started = Instant::now();
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--requests",
+            "3",
+            "--connections",
+            "1",
+            "--access-log",
+            path.to_str().unwrap(),
+            "--replay-rate",
+            "5",
+            &format!("http://{address}/"),
+        ])
+        .output()
+        .unwrap();
+    let elapsed = started.elapsed();
+    fs::remove_file(path).unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        elapsed >= Duration::from_millis(350),
+        "elapsed: {elapsed:?}"
+    );
+    assert!(elapsed < Duration::from_secs(2), "elapsed: {elapsed:?}");
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("Configured replay rate: 5 requests/sec"));
+    assert!(stdout.contains("Measured replay rate:"));
+    server.join().unwrap();
+}
+
+#[test]
 fn cli_replays_jsonl_post_with_headers_and_body() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();

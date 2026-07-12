@@ -100,6 +100,7 @@ pub enum ReplayOrder {
 pub struct ReplayOptions {
     pub order: ReplayOrder,
     pub seed: Option<u64>,
+    pub rate: Option<u64>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use crate::pacer::Pacer;
 use crate::{Method, ReplayOrder};
 
 pub(crate) struct EncodedRequest {
@@ -13,6 +14,7 @@ pub(crate) struct EncodedRequest {
 pub(crate) struct RequestSequence {
     requests: Arc<[EncodedRequest]>,
     selection: Selection,
+    pacer: Option<Arc<Pacer>>,
 }
 
 enum Selection {
@@ -39,10 +41,20 @@ impl RequestSequence {
         Self {
             requests: requests.into(),
             selection,
+            pacer: None,
         }
     }
 
+    pub(crate) fn with_rate(mut self, rate: Option<u64>) -> Self {
+        self.pacer = rate.map(|rate| Arc::new(Pacer::new(rate, std::time::Instant::now())));
+        self
+    }
+
     pub(crate) fn next(&self) -> (Method, Arc<[u8]>, std::ops::Range<usize>) {
+        if let Some(pacer) = &self.pacer {
+            let scheduled = pacer.reserve(std::time::Instant::now());
+            std::thread::sleep(scheduled.saturating_duration_since(std::time::Instant::now()));
+        }
         let index = match &self.selection {
             Selection::Sequential(next) => {
                 next.fetch_add(1, Ordering::Relaxed) % self.requests.len()

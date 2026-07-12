@@ -33,6 +33,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     let mut replay_order = ReplayOrder::Sequential;
     let mut replay_option_was_set = false;
     let mut seed = None;
+    let mut replay_rate = None;
     let mut method = Method::Get;
     let mut method_was_set = false;
     let mut headers = Vec::new();
@@ -101,6 +102,18 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                         .map_err(|_| format!("invalid replay seed: {value}"))?,
                 );
                 replay_option_was_set = true;
+            }
+            "--replay-rate" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| "--replay-rate requires a value".to_owned())?;
+                let rate = value
+                    .parse::<u64>()
+                    .map_err(|_| format!("invalid replay rate: {value}"))?;
+                if rate == 0 {
+                    return Err("replay rate must be greater than zero".into());
+                }
+                replay_rate = Some(rate);
             }
             "-X" | "--request" => {
                 let value = attached_value
@@ -235,6 +248,9 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     if replay_option_was_set && access_log.is_none() && request_file.is_none() {
         return Err("--replay-order and --seed require --access-log or --request-file".into());
     }
+    if replay_rate.is_some() && access_log.is_none() && request_file.is_none() {
+        return Err("--replay-rate requires --access-log or --request-file".into());
+    }
     if (!allowed_methods.is_empty() || !allowed_uris.is_empty())
         && access_log.is_none()
         && request_file.is_none()
@@ -260,6 +276,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     let replay_options = ReplayOptions {
         order: replay_order,
         seed,
+        rate: replay_rate,
     };
     let replay_filter = ReplayFilter {
         allowed_methods,
@@ -311,6 +328,13 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     );
     println!("Load window: {:.2?}", summary.load_runtime);
     println!("Drain time: {:.2?}", summary.drain_runtime);
+    if let Some(rate) = summary.configured_replay_rate {
+        println!("Configured replay rate: {rate} requests/sec");
+        println!(
+            "Measured replay rate: {:.2} requests/sec",
+            summary.completed as f64 / summary.load_runtime.as_secs_f64()
+        );
+    }
     if let Some(interval) = summary.coordinated_omission_interval {
         println!("Latency correction interval: {:.2?}", interval);
     }
@@ -380,6 +404,7 @@ fn print_help() {
     println!("      --request-file <FILE>  Replay structured requests from a JSONL file");
     println!("      --replay-order <ORDER>  sequential, shuffle, or random [default: sequential]");
     println!("      --seed <N>       Reproducible seed for shuffle or random replay");
+    println!("      --replay-rate <RPS>  Global replay request rate");
     println!("  -X, --request <METHOD>  HTTP method for an ordinary request");
     println!("  -H, --header <HEADER>  Request header; may be repeated");
     println!("      --data <DATA>    UTF-8 body; repeated values are joined with '&'");

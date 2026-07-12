@@ -15,8 +15,8 @@
    socket error recovery, and the release binary invocation from PowerShell.
 2. Publish a signed changelog and migration notes from the old internal
    `r-wrk` name to `rload`.
-3. Add replay rate control in 0.2.0: a fixed global request rate with explicit
-   pacing semantics, validation, and measured-rate reporting. This remains
+3. Fixed global replay rate control is implemented on the 0.2.0 development
+   branch with validation and configured/measured-rate reporting. It remains
    independent from request selection order and burst profiles.
 4. Add access-log timestamp pacing in 0.2.0: preserve inter-record timestamp
    gaps, support a playback multiplier, define behavior for second-only versus

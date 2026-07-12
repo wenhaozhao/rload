@@ -60,7 +60,7 @@ result is intentionally called out rather than rounded into a pass.
 | Nginx access-log replay | No native mode | Yes; common/combined logs, `GET`/`HEAD`, sequential/shuffle/random order; unsupported methods are skipped and reported |
 | JSONL request replay | No native mode | Yes; methods, headers, UTF-8 bodies, and per-record limits |
 | Replay seed and method/URI whitelists | No native mode | Yes; deterministic seed plus intersection filters |
-| Replay frequency/timestamp pacing/burst profiles | Custom scripting only | Planned 0.2.0 features, not implemented yet |
+| Replay frequency/timestamp pacing/burst profiles | Custom scripting only | Fixed global replay rate implemented; timestamp and burst pacing remain planned |
 | Automatic target inference from access-log entries | No native mode | Future candidate only; target URL is currently explicit |
 | GUI configuration interface | No native mode | Future optional feature layered on the rload engine |
 
@@ -146,7 +146,9 @@ in the final summary; they are not sent or included in request
 latency/throughput statistics. Request bodies and original timestamp pacing are
 not yet supported.
 
-Replay order is `sequential` by default. `shuffle` visits every entry exactly
+Replay order is `sequential` by default. `--replay-rate <RPS>` applies one
+global request rate across all replay workers and reports both configured and
+measured rates. `shuffle` visits every entry exactly
 once per round and reshuffles before the next round; `random` independently
 samples an entry for every request and can repeat entries. `--seed` makes either
 randomized allocation sequence reproducible. With multiple connections, the

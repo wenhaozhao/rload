@@ -114,7 +114,7 @@ fn run_with_roots(
 ) -> Result<RunSummary, RunError> {
     let target = Target::parse(&config.url)?;
     config.validate()?;
-    let (requests, filtered_replay_entries, skipped_access_log_methods) = match input {
+    let (requests, filtered_replay_entries, skipped_access_log_methods, replay_rate) = match input {
         RequestInput::Replay(replay, options, filtered, skipped_methods) => (
             RequestSequence::new(
                 replay
@@ -132,9 +132,11 @@ fn run_with_roots(
                     .collect(),
                 options.order,
                 options.seed.unwrap_or_else(replay_seed),
-            ),
+            )
+            .with_rate(options.rate),
             filtered,
             skipped_methods,
+            options.rate,
         ),
         RequestInput::Single(options) => {
             let request = ReplayRequest {
@@ -161,6 +163,7 @@ fn run_with_roots(
                 ),
                 0,
                 Default::default(),
+                None,
             )
         }
         RequestInput::Default => (
@@ -178,6 +181,7 @@ fn run_with_roots(
             ),
             0,
             Default::default(),
+            None,
         ),
     };
     let requests = Arc::new(requests);
@@ -218,6 +222,7 @@ fn run_with_roots(
     let finished = Instant::now();
     summary.filtered_replay_entries = filtered_replay_entries;
     summary.skipped_access_log_methods = skipped_access_log_methods;
+    summary.configured_replay_rate = replay_rate;
     summary.runtime = finished.duration_since(started);
     match config.limit {
         RunLimit::Duration(duration) => {
