@@ -84,6 +84,7 @@ fn validate(request: JsonRequest, line: usize) -> Result<ReplayRequest, RunError
         headers: request.headers.into_iter().collect(),
         body_present: request.body.is_some(),
         body: request.body.unwrap_or_default().into_bytes(),
+        timestamp_micros: None,
     };
     validate_request(&replay).map_err(|message| invalid(line, &message))?;
     Ok(replay)

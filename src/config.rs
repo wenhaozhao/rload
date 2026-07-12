@@ -96,10 +96,33 @@ pub enum ReplayOrder {
     Random,
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ReplayStage {
+    pub duration: Duration,
+    pub rate: u64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct ReplayOptions {
     pub order: ReplayOrder,
     pub seed: Option<u64>,
+    pub rate: Option<u64>,
+    pub timestamps: bool,
+    pub speed: f64,
+    pub stages: Vec<ReplayStage>,
+}
+
+impl Default for ReplayOptions {
+    fn default() -> Self {
+        Self {
+            order: ReplayOrder::Sequential,
+            seed: None,
+            rate: None,
+            timestamps: false,
+            speed: 1.0,
+            stages: Vec::new(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

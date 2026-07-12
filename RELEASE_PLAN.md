@@ -2,13 +2,12 @@
 
 ## Current status
 
-- `rload` 0.1.0 and 0.1.1 are published to crates.io; the latest published
-  version is 0.1.1.
-- The 0.1.1 package includes the standard license files and third-party notice.
+- `rload` 0.1.2 is published to crates.io; 0.2.0 release preparation is in
+  progress on this branch.
+- The package includes the standard license files and third-party notice.
 - The package metadata points to the public repository, homepage, and docs.rs.
 - `./scripts/release-check.sh` is the required local gate.
-- The current release baseline is macOS arm64; Linux and other targets remain
-  candidates until their CI gates run.
+- The 0.2.0 development branch adds CI gates for macOS, Linux, and Windows.
 
 ## Post-0.1.1 priorities
 
@@ -17,23 +16,27 @@
    socket error recovery, and the release binary invocation from PowerShell.
 2. Publish a signed changelog and migration notes from the old internal
    `r-wrk` name to `rload`.
-3. Add replay rate control in 0.2.0: a fixed global request rate with explicit
-   pacing semantics, validation, and measured-rate reporting. This remains
+3. Fixed global replay rate control is implemented on the 0.2.0 development
+   branch with validation and configured/measured-rate reporting. It remains
    independent from request selection order and burst profiles.
-4. Add access-log timestamp pacing in 0.2.0: preserve inter-record timestamp
-   gaps, support a playback multiplier, define behavior for second-only versus
-   sub-second timestamps, and report timestamp gaps that cannot be reproduced.
-   This remains independent from fixed-rate and burst modes.
+4. Access-log timestamp pacing is implemented on the 0.2.0 development branch:
+   it preserves inter-record gaps, supports a playback multiplier, accepts
+   second or fractional-second timestamps, rejects missing/decreasing values,
+   and explicitly treats the unknowable loop-boundary gap as zero. It is
+   independent from request selection and mutually exclusive with fixed rate.
 5. Keep Lua/LuaJIT out of the first release line unless a separate compatibility
    design and licensing review is approved.
-6. For 0.2.0, add tolerant access-log replay: skip unsupported methods instead of
-   aborting the input, track skipped records by method and total, and include
-   those counts in the final load summary and machine-readable result contract.
-7. For 0.2.0, add burst/stage traffic models that control send rate over time
-   (for example, a baseline rate followed by a timed spike and recovery). Keep
-   this independent from request selection order: sequential, shuffle, and
-   random determine which request is selected, while burst profiles determine
-   when requests are sent.
+6. Tolerant access-log replay is implemented on the 0.2.0 development branch:
+   unsupported methods are skipped, counted by method and total, and printed in
+   the final summary. Machine-readable result output remains to be designed.
+7. Burst/stage traffic models are implemented on the 0.2.0 development branch.
+   Timed rate stages support baseline, spike, and recovery profiles, hold the
+   final rate after the profile ends, and remain independent from sequential,
+   shuffle, or random request selection.
+8. Versioned machine-readable output is implemented with
+   `--output-format json`. Schema version 1 covers aggregate, latency, HTTP,
+   method, URI, socket-error, replay filtering/skipping, and pacing fields while
+   preserving the existing text output as the default.
 
 ## Future candidate features
 
@@ -56,9 +59,18 @@
   unconditional parity across environments.
 - Define the skipped-record output schema and verify that skipped access-log
    entries do not affect sent-request latency, throughput, or URI statistics.
-- Define mutually exclusive/composable rules for fixed-rate, timestamp, and
-  burst pacing, then add deterministic tests for rate, multiplier, timestamp
-  precision, and end-of-run behavior.
+- Fixed-rate, timestamp, and stage pacing are mutually exclusive and covered by
+  multiplier, precision, transition, and duration-boundary tests.
+
+## Benchmark policy
+
+Every benchmark sign-off must cover three dimensions: functional completeness
+regression, performance regression, and statistical accuracy. Each dimension
+must compare the same three implementations under equivalent parameters:
+`wrk`, the latest published rload release, and the current development build.
+Use at least five alternating paired runs for statistical accuracy decisions;
+record throughput, latency percentiles, errors, and peak RSS, and retain the
+raw result directories with the report.
 
 ## Release checklist
 
@@ -68,11 +80,12 @@
       results.
 - [ ] Run the deferred independent-server accuracy matrix (post-release task).
 - [x] Review `LICENSE-MIT`, `LICENSE-APACHE`, and `THIRD_PARTY_NOTICES.md`.
+- [x] Update the version to 0.2.0 and run the final package gate.
 - [ ] Tag the release and publish the changelog.
 
 ## Automated release workflow
 
-Push a tag in the form `vMAJOR.MINOR.PATCH` (for example `v0.1.2`) to run
+Push a tag in the form `vMAJOR.MINOR.PATCH` (for example `v0.2.0`) to run
 `.github/workflows/release.yml`. The workflow validates that the tag matches
 `Cargo.toml`, runs the release gate, publishes the crate, creates a GitHub
 Release, updates `wenhaozhao/homebrew-rload`, and commits the new version to

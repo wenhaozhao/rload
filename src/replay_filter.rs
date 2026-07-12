@@ -144,6 +144,7 @@ mod tests {
             headers: Vec::new(),
             body: Vec::new(),
             body_present: false,
+            timestamp_micros: None,
         }
     }
 }

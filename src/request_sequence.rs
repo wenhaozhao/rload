@@ -2,17 +2,23 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::{Method, ReplayOrder};
+use crate::pacer::{Pacer, StagePacer, TimestampPacer};
+use crate::{Method, ReplayOrder, ReplayStage};
 
 pub(crate) struct EncodedRequest {
     pub(crate) bytes: Arc<[u8]>,
     pub(crate) method_uri_start: u32,
     pub(crate) uri_end: u32,
+    pub(crate) timestamp_micros: Option<i64>,
 }
 
 pub(crate) struct RequestSequence {
     requests: Arc<[EncodedRequest]>,
     selection: Selection,
+    pacer: Option<Arc<Pacer>>,
+    timestamp_pacer: Option<Arc<TimestampPacer>>,
+    timestamp_cursor: Option<Mutex<usize>>,
+    stage_pacer: Option<Arc<StagePacer>>,
 }
 
 enum Selection {
@@ -39,29 +45,89 @@ impl RequestSequence {
         Self {
             requests: requests.into(),
             selection,
+            pacer: None,
+            timestamp_pacer: None,
+            timestamp_cursor: None,
+            stage_pacer: None,
         }
     }
 
-    pub(crate) fn next(&self) -> (Method, Arc<[u8]>, std::ops::Range<usize>) {
-        let index = match &self.selection {
-            Selection::Sequential(next) => {
-                next.fetch_add(1, Ordering::Relaxed) % self.requests.len()
-            }
-            Selection::Random { next, seed } => {
-                let position = next.fetch_add(1, Ordering::Relaxed) as u64;
-                bounded(splitmix64(seed.wrapping_add(position)), self.requests.len())
-            }
-            Selection::Shuffle(shuffle) => shuffle
+    pub(crate) fn with_timestamps(mut self, speed: f64) -> Self {
+        self.timestamp_pacer = Some(Arc::new(TimestampPacer::new(
+            speed,
+            std::time::Instant::now(),
+        )));
+        self.timestamp_cursor = Some(Mutex::new(0));
+        self
+    }
+
+    pub(crate) fn with_stages(mut self, stages: &[ReplayStage]) -> Self {
+        if !stages.is_empty() {
+            self.stage_pacer = Some(Arc::new(StagePacer::new(stages)));
+        }
+        self
+    }
+
+    pub(crate) fn with_rate(mut self, rate: Option<u64>) -> Self {
+        self.pacer = rate.map(|rate| Arc::new(Pacer::new(rate, std::time::Instant::now())));
+        self
+    }
+
+    pub(crate) fn next(
+        &self,
+    ) -> (
+        Method,
+        Arc<[u8]>,
+        std::ops::Range<usize>,
+        Option<std::time::Instant>,
+    ) {
+        let mut timestamp_cursor = self.timestamp_cursor.as_ref().map(|cursor| {
+            cursor
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .next(),
+        });
+        let index = if let Some(cursor) = &mut timestamp_cursor {
+            let index = **cursor;
+            **cursor = (index + 1) % self.requests.len();
+            index
+        } else {
+            match &self.selection {
+                Selection::Sequential(next) => {
+                    next.fetch_add(1, Ordering::Relaxed) % self.requests.len()
+                }
+                Selection::Random { next, seed } => {
+                    let position = next.fetch_add(1, Ordering::Relaxed) as u64;
+                    bounded(splitmix64(seed.wrapping_add(position)), self.requests.len())
+                }
+                Selection::Shuffle(shuffle) => shuffle
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .next(),
+            }
         };
         let request = &self.requests[index];
+        let now = std::time::Instant::now();
+        let scheduled = self
+            .pacer
+            .as_ref()
+            .map(|pacer| pacer.reserve(now))
+            .or_else(|| {
+                self.timestamp_pacer.as_ref().map(|pacer| {
+                    pacer.reserve(
+                        request
+                            .timestamp_micros
+                            .expect("timestamp pacing validates every request"),
+                        now,
+                    )
+                })
+            })
+            .or_else(|| self.stage_pacer.as_ref().map(|pacer| pacer.reserve(now)));
         let method = Method::ALL[(request.method_uri_start >> 29) as usize];
         (
             method,
             Arc::clone(&request.bytes),
             (request.method_uri_start & 0x1fff_ffff) as usize..request.uri_end as usize,
+            scheduled,
         )
     }
 }
@@ -149,7 +215,7 @@ mod tests {
                 thread::spawn(move || {
                     let mut counts = [0; 3];
                     for _ in 0..300 {
-                        let (_, bytes, _) = sequence.next();
+                        let (_, bytes, _, _) = sequence.next();
                         counts[usize::from(bytes[0] - b'A')] += 1;
                     }
                     counts
@@ -221,6 +287,7 @@ mod tests {
             bytes: Arc::from(bytes),
             method_uri_start: method_uri_start(Method::Get, 4),
             uri_end: 5,
+            timestamp_micros: None,
         }
     }
 }

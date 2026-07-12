@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -270,6 +271,8 @@ pub struct RunSummary {
     pub drain_runtime: Duration,
     pub coordinated_omission_interval: Option<Duration>,
     pub filtered_replay_entries: u64,
+    pub skipped_access_log_methods: BTreeMap<String, u64>,
+    pub configured_replay_rate: Option<u64>,
     method_summaries: [MethodSummary; Method::ALL.len()],
     status_counts: StatusCounts,
     uri_top: UriTop,
@@ -288,6 +291,8 @@ impl Default for RunSummary {
             drain_runtime: Duration::ZERO,
             coordinated_omission_interval: None,
             filtered_replay_entries: 0,
+            skipped_access_log_methods: BTreeMap::new(),
+            configured_replay_rate: None,
             method_summaries: std::array::from_fn(|_| MethodSummary::default()),
             status_counts: StatusCounts::default(),
             uri_top: UriTop::default(),
@@ -302,6 +307,9 @@ impl RunSummary {
         self.status_errors += other.status_errors;
         self.socket_errors.merge(other.socket_errors);
         self.filtered_replay_entries += other.filtered_replay_entries;
+        for (method, count) in other.skipped_access_log_methods {
+            *self.skipped_access_log_methods.entry(method).or_default() += count;
+        }
         self.latencies.merge(&other.latencies);
         for (method, other) in self
             .method_summaries

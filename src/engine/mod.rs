@@ -48,13 +48,14 @@ pub fn run_access_log_with_filter(
     options: ReplayOptions,
     filter: ReplayFilter,
 ) -> Result<RunSummary, RunError> {
-    validate_replay_options(options)?;
+    validate_replay_options(&options)?;
     let replay = access_log::read(path.as_ref())?;
-    let (replay, filtered) = replay_filter::apply(replay, &filter)?;
+    let skipped_methods = replay.skipped_methods;
+    let (replay, filtered) = replay_filter::apply(replay.requests, &filter)?;
     run_with_roots(
         config,
         RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned()),
-        RequestInput::Replay(replay, options, filtered),
+        RequestInput::Replay(replay, options, filtered, skipped_methods),
     )
 }
 
@@ -76,13 +77,18 @@ pub fn run_request_file_with_filter(
     options: ReplayOptions,
     filter: ReplayFilter,
 ) -> Result<RunSummary, RunError> {
-    validate_replay_options(options)?;
+    validate_replay_options(&options)?;
+    if options.timestamps {
+        return Err(RunError::InvalidConfig(
+            "timestamp pacing requires an access log".into(),
+        ));
+    }
     let replay = request_file::read(path.as_ref())?;
     let (replay, filtered) = replay_filter::apply(replay, &filter)?;
     run_with_roots(
         config,
         RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned()),
-        RequestInput::Replay(replay, options, filtered),
+        RequestInput::Replay(replay, options, filtered, Default::default()),
     )
 }
 
@@ -97,10 +103,51 @@ pub fn run_with_request(
     )
 }
 
-fn validate_replay_options(options: ReplayOptions) -> Result<(), RunError> {
+fn validate_replay_options(options: &ReplayOptions) -> Result<(), RunError> {
     if options.order == ReplayOrder::Sequential && options.seed.is_some() {
         return Err(RunError::InvalidConfig(
             "replay seed requires shuffle or random order".into(),
+        ));
+    }
+    if options.timestamps && options.order != ReplayOrder::Sequential {
+        return Err(RunError::InvalidConfig(
+            "timestamp pacing requires sequential replay order".into(),
+        ));
+    }
+    if options.timestamps && options.rate.is_some() {
+        return Err(RunError::InvalidConfig(
+            "timestamp pacing cannot be combined with a fixed replay rate".into(),
+        ));
+    }
+    if !options.stages.is_empty() && (options.rate.is_some() || options.timestamps) {
+        return Err(RunError::InvalidConfig(
+            "replay stages cannot be combined with fixed-rate or timestamp pacing".into(),
+        ));
+    }
+    if options
+        .stages
+        .iter()
+        .any(|stage| stage.duration.is_zero() || stage.rate == 0)
+    {
+        return Err(RunError::InvalidConfig(
+            "replay stages require positive durations and rates".into(),
+        ));
+    }
+    if options
+        .stages
+        .iter()
+        .try_fold(Duration::ZERO, |total, stage| {
+            total.checked_add(stage.duration)
+        })
+        .is_none()
+    {
+        return Err(RunError::InvalidConfig(
+            "cumulative replay stage duration is too large".into(),
+        ));
+    }
+    if !options.speed.is_finite() || options.speed <= 0.0 {
+        return Err(RunError::InvalidConfig(
+            "replay speed must be a finite number greater than zero".into(),
         ));
     }
     Ok(())
@@ -113,26 +160,41 @@ fn run_with_roots(
 ) -> Result<RunSummary, RunError> {
     let target = Target::parse(&config.url)?;
     config.validate()?;
-    let (requests, filtered_replay_entries) = match input {
-        RequestInput::Replay(replay, options, filtered) => (
-            RequestSequence::new(
-                replay
-                    .into_iter()
-                    .map(|request| {
-                        let uri_start = request.method.as_str().len() + 1;
-                        let uri = uri_start..uri_start + request.path.len();
-                        let bytes = target.replay_request(&request);
-                        EncodedRequest {
-                            bytes,
-                            method_uri_start: method_uri_start(request.method, uri.start),
-                            uri_end: uri.end as u32,
-                        }
-                    })
-                    .collect(),
-                options.order,
-                options.seed.unwrap_or_else(replay_seed),
-            ),
+    let (requests, filtered_replay_entries, skipped_access_log_methods, replay_rate) = match input {
+        RequestInput::Replay(replay, options, filtered, skipped_methods) => (
+            {
+                if options.timestamps {
+                    validate_timestamps(&replay)?;
+                }
+                let sequence = RequestSequence::new(
+                    replay
+                        .into_iter()
+                        .map(|request| {
+                            let uri_start = request.method.as_str().len() + 1;
+                            let uri = uri_start..uri_start + request.path.len();
+                            let bytes = target.replay_request(&request);
+                            EncodedRequest {
+                                bytes,
+                                method_uri_start: method_uri_start(request.method, uri.start),
+                                uri_end: uri.end as u32,
+                                timestamp_micros: request.timestamp_micros,
+                            }
+                        })
+                        .collect(),
+                    options.order,
+                    options.seed.unwrap_or_else(replay_seed),
+                )
+                .with_rate(options.rate)
+                .with_stages(&options.stages);
+                if options.timestamps {
+                    sequence.with_timestamps(options.speed)
+                } else {
+                    sequence
+                }
+            },
             filtered,
+            skipped_methods,
+            options.rate,
         ),
         RequestInput::Single(options) => {
             let request = ReplayRequest {
@@ -141,6 +203,7 @@ fn run_with_roots(
                 headers: options.headers,
                 body_present: options.body.is_some(),
                 body: options.body.unwrap_or_default(),
+                timestamp_micros: None,
             };
             validate_request(&request).map_err(RunError::InvalidConfig)?;
             let bytes = target.replay_request(&request);
@@ -153,11 +216,14 @@ fn run_with_roots(
                             request.method.as_str().len() + 1,
                         ),
                         uri_end: (request.method.as_str().len() + 1 + request.path.len()) as u32,
+                        timestamp_micros: None,
                     }],
                     ReplayOrder::Sequential,
                     0,
                 ),
                 0,
+                Default::default(),
+                None,
             )
         }
         RequestInput::Default => (
@@ -169,11 +235,14 @@ fn run_with_roots(
                         config.method.as_str().len() + 1,
                     ),
                     uri_end: (config.method.as_str().len() + 1 + target.path().len()) as u32,
+                    timestamp_micros: None,
                 }],
                 ReplayOrder::Sequential,
                 0,
             ),
             0,
+            Default::default(),
+            None,
         ),
     };
     let requests = Arc::new(requests);
@@ -213,6 +282,8 @@ fn run_with_roots(
     })?;
     let finished = Instant::now();
     summary.filtered_replay_entries = filtered_replay_entries;
+    summary.skipped_access_log_methods = skipped_access_log_methods;
+    summary.configured_replay_rate = replay_rate;
     summary.runtime = finished.duration_since(started);
     match config.limit {
         RunLimit::Duration(duration) => {
@@ -234,10 +305,33 @@ fn run_with_roots(
     Ok(summary)
 }
 
+fn validate_timestamps(requests: &[ReplayRequest]) -> Result<(), RunError> {
+    let mut previous = None;
+    for request in requests {
+        let timestamp = request.timestamp_micros.ok_or_else(|| {
+            RunError::InvalidAccessLog(
+                "timestamp pacing requires a valid timestamp on every replayable line".into(),
+            )
+        })?;
+        if previous.is_some_and(|previous| timestamp < previous) {
+            return Err(RunError::InvalidAccessLog(
+                "timestamp pacing requires non-decreasing log timestamps".into(),
+            ));
+        }
+        previous = Some(timestamp);
+    }
+    Ok(())
+}
+
 enum RequestInput {
     Default,
     Single(RequestOptions),
-    Replay(Vec<ReplayRequest>, ReplayOptions, u64),
+    Replay(
+        Vec<ReplayRequest>,
+        ReplayOptions,
+        u64,
+        std::collections::BTreeMap<String, u64>,
+    ),
 }
 
 fn replay_seed() -> u64 {
@@ -337,7 +431,7 @@ mod tests {
 
         assert!(matches!(
             run_with_roots(config, RootCertStore::empty(), RequestInput::Default),
-            Err(RunError::Io(_))
+            Err(RunError::Io(_) | RunError::Tls(_))
         ));
         assert!(server.join().unwrap());
     }
@@ -387,6 +481,7 @@ mod tests {
                     bytes: Arc::from(&b"GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n"[..]),
                     method_uri_start: method_uri_start(Method::Get, 4),
                     uri_end: 11,
+                    timestamp_micros: None,
                 }],
                 ReplayOrder::Sequential,
                 0,
@@ -478,14 +573,24 @@ fn run_worker(
 
     let mut active = connections.len();
     let mut deadlines = BinaryHeap::new();
+    let mut pacing = BinaryHeap::new();
     for (token, connection) in connections.iter().enumerate() {
         schedule_deadline(&mut deadlines, Token(token), connection, timeout);
+        schedule_pacing(&mut pacing, Token(token), connection);
     }
     while active > 0 {
         discard_stale_deadlines(&mut deadlines, &connections);
-        let poll_timeout = deadlines
+        discard_stale_pacing(&mut pacing, &connections);
+        let deadline_timeout = deadlines
             .peek()
             .map(|Reverse((deadline, _, _))| deadline.saturating_duration_since(Instant::now()));
+        let pacing_timeout = pacing
+            .peek()
+            .map(|Reverse((deadline, _, _))| deadline.saturating_duration_since(Instant::now()));
+        let poll_timeout = match (deadline_timeout, pacing_timeout) {
+            (Some(left), Some(right)) => Some(left.min(right)),
+            (left, right) => left.or(right),
+        };
         poll.poll(&mut events, poll_timeout)?;
         for event in &events {
             let token = event.token();
@@ -505,6 +610,16 @@ fn run_worker(
                             summary.socket_errors.write += 1;
                         }
                         schedule_deadline(&mut deadlines, token, connection, timeout);
+                        schedule_pacing(&mut pacing, token, connection);
+                        continue;
+                    }
+                    if connection.stop_after_duration_error(poll.registry())? {
+                        if read_error {
+                            summary.socket_errors.read += 1;
+                        } else {
+                            summary.socket_errors.write += 1;
+                        }
+                        active -= 1;
                         continue;
                     }
                     return Err(RunError::Io(error));
@@ -512,6 +627,7 @@ fn run_worker(
                 summary.socket_errors.connect += 1;
                 connection.retry_address(error, poll.registry(), token)?;
                 schedule_deadline(&mut deadlines, token, connection, timeout);
+                schedule_pacing(&mut pacing, token, connection);
                 continue;
             }
             if event.is_writable() {
@@ -523,6 +639,7 @@ fn run_worker(
                     summary.socket_errors.connect += 1;
                     connection.retry_address(error, poll.registry(), token)?;
                     schedule_deadline(&mut deadlines, token, connection, timeout);
+                    schedule_pacing(&mut pacing, token, connection);
                     continue;
                 }
                 let generation = connection.generation();
@@ -533,11 +650,18 @@ fn run_worker(
                         summary.socket_errors.connect += 1;
                         connection.retry_address(error, poll.registry(), token)?;
                         schedule_deadline(&mut deadlines, token, connection, timeout);
+                        schedule_pacing(&mut pacing, token, connection);
                         continue;
                     }
                     if connection.recover_request(poll.registry(), token)? {
                         summary.socket_errors.write += 1;
                         schedule_deadline(&mut deadlines, token, connection, timeout);
+                        schedule_pacing(&mut pacing, token, connection);
+                        continue;
+                    }
+                    if connection.stop_after_duration_error(poll.registry())? {
+                        summary.socket_errors.write += 1;
+                        active -= 1;
                         continue;
                     }
                     return Err(error);
@@ -545,6 +669,7 @@ fn run_worker(
                 connection.refresh_interest(poll.registry(), token)?;
                 if connection.generation() != generation {
                     schedule_deadline(&mut deadlines, token, connection, timeout);
+                    schedule_pacing(&mut pacing, token, connection);
                 }
             }
             if event.is_readable() || event.is_read_closed() {
@@ -561,12 +686,19 @@ fn run_worker(
                         summary.socket_errors.connect += 1;
                         connection.retry_address(error, poll.registry(), token)?;
                         schedule_deadline(&mut deadlines, token, connection, timeout);
+                        schedule_pacing(&mut pacing, token, connection);
                         continue;
                     }
                     Err(RunError::Io(error)) => {
                         if connection.recover_request(poll.registry(), token)? {
                             summary.socket_errors.read += 1;
                             schedule_deadline(&mut deadlines, token, connection, timeout);
+                            schedule_pacing(&mut pacing, token, connection);
+                            continue;
+                        }
+                        if connection.stop_after_duration_error(poll.registry())? {
+                            summary.socket_errors.read += 1;
+                            active -= 1;
                             continue;
                         }
                         return Err(RunError::Io(error));
@@ -590,6 +722,7 @@ fn run_worker(
                         active -= 1;
                     } else {
                         schedule_deadline(&mut deadlines, token, connection, timeout);
+                        schedule_pacing(&mut pacing, token, connection);
                     }
                 } else {
                     connection.refresh_interest(poll.registry(), token)?;
@@ -612,6 +745,7 @@ fn run_worker(
                     summary.socket_errors.timeout += 1;
                     if connection.recover_request(poll.registry(), Token(token))? {
                         schedule_deadline(&mut deadlines, Token(token), connection, timeout);
+                        schedule_pacing(&mut pacing, Token(token), connection);
                     } else if connection.stop_after_duration_error(poll.registry())? {
                         active -= 1;
                     } else {
@@ -623,24 +757,45 @@ fn run_worker(
                 }
                 Expiration::ConnectionTimeout => {
                     summary.socket_errors.connect += 1;
-                    if connection.recover_request(poll.registry(), Token(token))? {
-                        schedule_deadline(&mut deadlines, Token(token), connection, timeout);
-                    } else if connection.stop_after_duration_error(poll.registry())? {
-                        active -= 1;
+                    let timeout_error =
+                        std::io::Error::new(std::io::ErrorKind::TimedOut, "connection timed out");
+                    if let Err(error) =
+                        connection.retry_address(timeout_error, poll.registry(), Token(token))
+                    {
+                        if connection.stop_after_duration_error(poll.registry())? {
+                            active -= 1;
+                        } else {
+                            return Err(error);
+                        }
                     } else {
-                        return Err(RunError::Io(std::io::Error::new(
-                            std::io::ErrorKind::TimedOut,
-                            "connection timed out",
-                        )));
+                        schedule_deadline(&mut deadlines, Token(token), connection, timeout);
+                        schedule_pacing(&mut pacing, Token(token), connection);
                     }
                 }
             }
+        }
+        let now = Instant::now();
+        while let Some(Reverse((deadline, token, generation))) = pacing.peek().copied() {
+            if deadline > now {
+                break;
+            }
+            pacing.pop();
+            let connection = &mut connections[token];
+            if connection.is_done() || connection.generation() != generation {
+                continue;
+            }
+            if connection.stop_if_expired(poll.registry())? {
+                active -= 1;
+                continue;
+            }
+            connection.refresh_interest(poll.registry(), Token(token))?;
         }
     }
     Ok(summary)
 }
 
 type DeadlineQueue = BinaryHeap<Reverse<(Instant, usize, u64)>>;
+type PacingQueue = BinaryHeap<Reverse<(Instant, usize, u64)>>;
 
 fn schedule_deadline(
     deadlines: &mut DeadlineQueue,
@@ -648,12 +803,14 @@ fn schedule_deadline(
     connection: &Connection,
     timeout: Duration,
 ) {
-    if !connection.is_done() {
-        deadlines.push(Reverse((
-            connection.next_deadline(timeout),
-            token.0,
-            connection.generation(),
-        )));
+    if let Some(deadline) = connection.next_deadline(timeout) {
+        deadlines.push(Reverse((deadline, token.0, connection.generation())));
+    }
+}
+
+fn schedule_pacing(pacing: &mut PacingQueue, token: Token, connection: &Connection) {
+    if let Some(deadline) = connection.pacing_deadline() {
+        pacing.push(Reverse((deadline, token.0, connection.generation())));
     }
 }
 
@@ -662,6 +819,20 @@ fn discard_stale_deadlines(deadlines: &mut DeadlineQueue, connections: &[Connect
         let connection = &connections[token];
         if connection.is_done() || connection.generation() != generation {
             deadlines.pop();
+        } else {
+            break;
+        }
+    }
+}
+
+fn discard_stale_pacing(pacing: &mut PacingQueue, connections: &[Connection]) {
+    while let Some(Reverse((deadline, token, generation))) = pacing.peek().copied() {
+        let connection = &connections[token];
+        if connection.is_done()
+            || connection.generation() != generation
+            || connection.pacing_deadline() != Some(deadline)
+        {
+            pacing.pop();
         } else {
             break;
         }

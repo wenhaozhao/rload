@@ -23,6 +23,8 @@ pub(super) struct Connection {
     method: Method,
     uri: Range<usize>,
     request: Arc<[u8]>,
+    not_before: Option<Instant>,
+    awaiting_pace: bool,
     write_offset: usize,
     decoder: ResponseDecoder,
     started: Option<Instant>,
@@ -55,7 +57,7 @@ impl Connection {
     ) -> Result<Self, RunError> {
         let (stream, address_index) = connect_from(&addresses, 0)?;
         let stream = Transport::new(stream, tls.as_ref())?;
-        let (method, request, uri) = requests.next();
+        let (method, request, uri, not_before) = requests.next();
         Ok(Self {
             stream,
             addresses,
@@ -64,6 +66,8 @@ impl Connection {
             method,
             uri,
             request,
+            not_before,
+            awaiting_pace: false,
             write_offset: 0,
             decoder: ResponseDecoder::new(method == crate::Method::Head),
             started: None,
@@ -84,6 +88,17 @@ impl Connection {
         if !self.stream.finish_handshake()? {
             return Ok(());
         }
+        if self
+            .not_before
+            .is_some_and(|not_before| Instant::now() < not_before)
+        {
+            if !self.awaiting_pace {
+                self.awaiting_pace = true;
+                self.timer_generation += 1;
+            }
+            return Ok(());
+        }
+        self.awaiting_pace = false;
         if self.started.is_none() {
             self.started = Some(Instant::now());
             self.timer_generation += 1;
@@ -128,7 +143,12 @@ impl Connection {
         registry: &Registry,
         token: Token,
     ) -> Result<(), RunError> {
-        let interest = self.stream.interest(self.request_is_written());
+        let request_ready = self
+            .not_before
+            .is_none_or(|not_before| Instant::now() >= not_before);
+        let interest = self
+            .stream
+            .interest(self.request_is_written(), request_ready);
         registry.reregister(self.stream.socket_mut(), token, interest)?;
         Ok(())
     }
@@ -248,10 +268,12 @@ impl Connection {
     }
 
     fn install_next_request(&mut self) {
-        let (method, request, uri) = self.requests.next();
+        let (method, request, uri, not_before) = self.requests.next();
         self.method = method;
         self.uri = uri;
         self.request = request;
+        self.not_before = not_before;
+        self.awaiting_pace = false;
         self.decoder = ResponseDecoder::new(method == crate::Method::Head);
     }
 
@@ -274,6 +296,7 @@ impl Connection {
         self.stream = Transport::new(stream, self.tls.as_ref())?;
         self.address_index = address_index;
         self.connected_at = Instant::now();
+        self.awaiting_pace = false;
         self.timer_generation += 1;
         registry.register(
             self.stream.socket_mut(),
@@ -303,6 +326,7 @@ impl Connection {
         self.decoder = ResponseDecoder::new(self.method == crate::Method::Head);
         self.started = None;
         self.connected_at = Instant::now();
+        self.awaiting_pace = false;
         self.timer_generation += 1;
         registry.register(
             self.stream.socket_mut(),
@@ -328,16 +352,31 @@ impl Connection {
         Ok(false)
     }
 
-    pub(super) fn next_deadline(&self, timeout: Duration) -> Instant {
-        match self.started {
-            Some(started) => started + timeout,
-            None => self
-                .limit
-                .deadline()
-                .map_or(self.connected_at + timeout, |deadline| {
-                    deadline.min(self.connected_at + timeout)
-                }),
+    pub(super) fn next_deadline(&self, timeout: Duration) -> Option<Instant> {
+        if self.awaiting_pace {
+            return None;
         }
+        match self.started {
+            Some(started) => Some(started + timeout),
+            None => Some(
+                self.limit
+                    .deadline()
+                    .map_or(self.connected_at + timeout, |deadline| {
+                        deadline.min(self.connected_at + timeout)
+                    }),
+            ),
+        }
+    }
+
+    pub(super) fn pacing_deadline(&self) -> Option<Instant> {
+        if !self.awaiting_pace || self.done {
+            return None;
+        }
+        self.not_before.map(|not_before| {
+            self.limit
+                .deadline()
+                .map_or(not_before, |deadline| deadline.min(not_before))
+        })
     }
 
     pub(super) fn expire(&mut self, registry: &Registry) -> Result<Expiration, RunError> {
@@ -386,13 +425,14 @@ impl Transport {
         }
     }
 
-    fn interest(&self, request_written: bool) -> Interest {
+    fn interest(&self, request_written: bool, request_ready: bool) -> Interest {
         match self {
             Self::Plain(_) if request_written => Interest::READABLE,
+            Self::Plain(_) if !request_ready => Interest::READABLE,
             Self::Plain(_) => Interest::READABLE | Interest::WRITABLE,
             Self::Tls(stream)
                 if stream.conn.wants_write()
-                    || (!stream.conn.is_handshaking() && !request_written) =>
+                    || (!stream.conn.is_handshaking() && !request_written && request_ready) =>
             {
                 Interest::READABLE | Interest::WRITABLE
             }

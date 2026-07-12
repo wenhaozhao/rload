@@ -48,7 +48,7 @@ result is intentionally called out rather than rounded into a pass.
 
 ### Functional coverage
 
-| Capability | wrk 4.2.0 | rload 0.1.1 |
+| Capability | wrk 4.2.0 | rload 0.2.0 development |
 |---|---|---|
 | HTTP/1.1 static request load | Yes | Yes |
 | HTTP and HTTPS with connection reuse | Yes | Yes, including TLS verification and SNI |
@@ -57,10 +57,10 @@ result is intentionally called out rather than rounded into a pass.
 | HTTP status and socket-error statistics | Yes | Yes, with connect/read/write/timeout categories |
 | Curl-style method, headers, and request body | Via Lua scripting | Yes for the documented curl-compatible subset |
 | Lua/LuaJIT request scripting | Yes | Intentionally not supported in the first release line |
-| Nginx access-log replay | No native mode | Yes; common/combined logs, `GET`/`HEAD`, sequential/shuffle/random order; unsupported-method skipping planned for 0.2.0 |
+| Nginx access-log replay | No native mode | Yes; common/combined logs, `GET`/`HEAD`, sequential/shuffle/random order; unsupported methods are skipped and reported |
 | JSONL request replay | No native mode | Yes; methods, headers, UTF-8 bodies, and per-record limits |
 | Replay seed and method/URI whitelists | No native mode | Yes; deterministic seed plus intersection filters |
-| Replay frequency/timestamp pacing/burst profiles | Custom scripting only | Planned 0.2.0 features, not implemented yet |
+| Replay frequency/timestamp pacing/burst profiles | Custom scripting only | Fixed global rate, timestamp-speed pacing, and timed rate stages implemented |
 | Automatic target inference from access-log entries | No native mode | Future candidate only; target URL is currently explicit |
 | GUI configuration interface | No native mode | Future optional feature layered on the rload engine |
 
@@ -74,17 +74,15 @@ CLI or duplicate load-generation logic.
 
 ## Build and install
 
-The current release baseline is validated with stable Rust 1.96.1 on macOS
-arm64. The runtime uses portable Rust crates, but Linux and Windows remain
-release candidates until the same test and package gates run in 0.2.0 CI on
-those platforms. Windows CI will additionally cover PowerShell invocation,
-path handling, and socket recovery.
+The 0.2.0 release candidate is validated with stable Rust 1.96.1 on macOS
+arm64, Linux, and Windows. Windows CI additionally covers PowerShell
+invocation, path handling, and socket recovery.
 
 Build or install directly from this checkout:
 
 ```sh
-cargo build --release --manifest-path r-wrk/Cargo.toml
-cargo install --path r-wrk
+cargo build --release
+cargo install --path .
 rload --help
 ```
 
@@ -139,18 +137,54 @@ resume sending requests without restarting the load-test process.
 
 Access-log replay reads the quoted Nginx `$request` field, preserves its
 origin-form URI (including the query string), and cycles through the log in
-order until the request-count or duration limit is reached. Empty logs,
-malformed request lines, and methods other than `GET` or `HEAD` fail with the
-source line number in 0.1.1. In 0.2.0, unsupported methods will be skipped and
-reported by total and method-specific counters in the final summary; they will
-not be sent or included in request latency/throughput statistics. Request bodies
-and original timestamp pacing are not yet supported.
+order until the request-count or duration limit is reached. Empty logs and
+malformed request lines fail with the source line number. Methods other than
+`GET` or `HEAD` are skipped and reported by total and method-specific counters
+in the final summary; they are not sent or included in request
+latency/throughput statistics. Request bodies are not supported in access-log
+mode.
 
-Replay order is `sequential` by default. `shuffle` visits every entry exactly
+Replay order is `sequential` by default. `--replay-rate <RPS>` applies one
+global request rate across all replay workers and reports both configured and
+measured rates. `shuffle` visits every entry exactly
 once per round and reshuffles before the next round; `random` independently
 samples an entry for every request and can repeat entries. `--seed` makes either
 randomized allocation sequence reproducible. With multiple connections, the
 allocation sequence remains deterministic but network arrival order can vary.
+
+`--replay-timestamps` preserves gaps between adjacent Nginx access-log
+timestamps. The first request is immediate, and `--replay-speed <N>` scales
+subsequent gaps (`2` is twice as fast, `0.5` is half speed). Standard
+second-resolution `$time_local` values and fractional seconds up to microsecond
+precision are accepted. Records with the same timestamp are eligible to send
+without an added gap. Timestamp mode requires sequential access-log replay and
+is mutually exclusive with `--replay-rate`; missing or decreasing timestamps
+are rejected. When the log cycles, the next round begins immediately because
+an interval from the final record back to the first is not present in the log.
+
+`--replay-stages <DURATION:RPS,...>` defines a timed rate profile, for example
+`--replay-stages 10s:100,5s:1000,10s:100` for a baseline, spike, and recovery.
+Stage transitions occur on the configured boundaries; after the profile ends,
+the final rate remains active. Stages work with sequential, shuffle, or random
+selection and with either replay input format. They are mutually exclusive with
+`--replay-rate` and `--replay-timestamps`.
+
+### Machine-readable results
+
+Use `--output-format json` when integrating rload with CI, dashboards, or the
+planned GUI:
+
+```bash
+rload -t2 -c100 -d30s --output-format json http://127.0.0.1/ > result.json
+```
+
+JSON output is one document on stdout with `schema_version: 1`. Durations and
+latencies use integer microseconds. It includes aggregate throughput, latency
+percentiles, HTTP status and method statistics, socket errors, URI Top-20
+estimates, filtered/skipped replay records, and the active fixed-rate,
+timestamp, or stage pacing configuration. Configuration and runtime errors
+remain on stderr and return a non-zero exit status. The default `text` format
+is unchanged.
 
 URI Top-20 counts use a bounded Space-Saving estimate. For each entry, the true
 request count is between `estimated_requests - maximum_error` and
@@ -185,28 +219,14 @@ excludes the entire input is an error. Whitelist options are not valid for an
 ordinary single request. At most 32 URI patterns may be supplied, each no longer
 than 256 bytes, which bounds wildcard matching work for large logs.
 
-### Optional replay features
+### Future candidate features
 
 The following capabilities are recorded for later evaluation and are not part
 of the current implementation or acceptance scope:
 
-- replay frequency control with a fixed global request rate;
-- original access-log timestamp pacing and playback-speed scaling, including
-  explicit handling for second-only versus sub-second timestamps;
-- per-stage or burst rate profiles, such as a baseline rate followed by a timed
-  spike and recovery;
 - target inference for custom Nginx log formats that explicitly record scheme,
   host, and port; this remains a future candidate and is not scheduled for
   0.2.0.
-
-Burst profiles control when requests are sent and are independent of replay
-selection order. `sequential`, `shuffle`, and `random` choose which request is
-selected; a burst/stage profile controls the rate at which selected requests
-are issued.
-
-Until one of these optional modes is implemented, access-log replay remains a
-maximum-throughput workload: each connection sends its next request as soon as
-the previous response completes.
 
 Measure replay overhead against the static-request path with:
 

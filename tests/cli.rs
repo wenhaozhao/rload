@@ -39,6 +39,62 @@ fn cli_runs_http_load_and_prints_summary() {
 }
 
 #[test]
+fn cli_outputs_machine_readable_json_summary() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = Vec::new();
+        while !request.ends_with(b"\r\n\r\n") {
+            let mut byte = [0];
+            stream.read_exact(&mut byte).unwrap();
+            request.push(byte[0]);
+        }
+        stream
+            .write_all(b"HTTP/1.1 201 Created\r\nContent-Length: 2\r\n\r\nOK")
+            .unwrap();
+    });
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--requests",
+            "1",
+            "--output-format",
+            "json",
+            &format!("http://{address}/json"),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stderr.is_empty());
+    let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["schema_version"], 1);
+    assert_eq!(result["summary"]["completed_requests"], 1);
+    assert_eq!(result["summary"]["response_body_bytes"], 2);
+    assert_eq!(result["methods"]["GET"]["requests"], 1);
+    assert_eq!(result["http_statuses"]["201"], 1);
+    assert!(result["latency"]["p99_us"].as_u64().is_some());
+    assert_eq!(result["replay"]["configured_rate"], serde_json::Value::Null);
+    server.join().unwrap();
+}
+
+#[test]
+fn cli_rejects_unknown_output_format() {
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args(["--output-format", "xml", "http://127.0.0.1:1/"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("expected text or json"));
+}
+
+#[test]
 fn cli_accepts_attached_request_count() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
@@ -139,11 +195,27 @@ fn cli_replays_access_log_requests_in_order() {
 }
 
 #[test]
-fn cli_reports_invalid_access_log_line() {
+fn cli_skips_unsupported_access_log_methods_and_reports_them() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = Vec::new();
+        while !request.ends_with(b"\r\n\r\n") {
+            let mut byte = [0];
+            stream.read_exact(&mut byte).unwrap();
+            request.push(byte[0]);
+        }
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+            .unwrap();
+        request
+    });
     let path = env::temp_dir().join(format!("r-wrk-invalid-access-{}.log", std::process::id()));
     fs::write(
         &path,
-        "127.0.0.1 - - [date] \"POST /items HTTP/1.1\" 200 0\n",
+        "127.0.0.1 - - [date] \"POST /items HTTP/1.1\" 200 0\n\
+         127.0.0.1 - - [date] \"GET /health HTTP/1.1\" 200 0\n",
     )
     .unwrap();
 
@@ -151,16 +223,27 @@ fn cli_reports_invalid_access_log_line() {
         .args([
             "--access-log",
             path.to_str().unwrap(),
-            "http://127.0.0.1:1/",
+            "--requests",
+            "1",
+            &format!("http://{address}/"),
         ])
         .output()
         .unwrap();
     fs::remove_file(path).unwrap();
 
-    assert!(!output.status.success());
-    let stderr = String::from_utf8(output.stderr).unwrap();
-    assert!(stderr.contains("invalid access log: line 1"));
-    assert!(stderr.contains("method POST"));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8(server.join().unwrap())
+            .unwrap()
+            .starts_with("GET /health HTTP/1.1\r\n")
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("Access-log entries skipped: 1"));
+    assert!(stdout.contains("POST         1 unsupported method"));
 }
 
 #[test]
@@ -225,6 +308,277 @@ fn cli_accepts_seeded_random_replay() {
         String::from_utf8_lossy(&output.stderr)
     );
     server.join().unwrap();
+}
+
+#[test]
+fn cli_limits_replay_to_global_request_rate() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        for _ in 0..3 {
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                let mut byte = [0];
+                stream.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        }
+    });
+    let path = env::temp_dir().join(format!("rload-rate-{}.log", std::process::id()));
+    fs::write(&path, "127.0.0.1 - - [date] \"GET /rate HTTP/1.1\" 200 0\n").unwrap();
+
+    let started = Instant::now();
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--requests",
+            "3",
+            "--connections",
+            "1",
+            "--access-log",
+            path.to_str().unwrap(),
+            "--replay-rate",
+            "5",
+            &format!("http://{address}/"),
+        ])
+        .output()
+        .unwrap();
+    let elapsed = started.elapsed();
+    fs::remove_file(path).unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        elapsed >= Duration::from_millis(350),
+        "elapsed: {elapsed:?}"
+    );
+    assert!(elapsed < Duration::from_secs(5), "elapsed: {elapsed:?}");
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("Configured replay rate: 5 requests/sec"));
+    assert!(stdout.contains("Measured replay rate:"));
+    server.join().unwrap();
+}
+
+#[test]
+fn replay_pacing_does_not_block_duration_shutdown() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let path = env::temp_dir().join(format!("rload-nonblocking-rate-{}.log", std::process::id()));
+    fs::write(&path, "127.0.0.1 - - [date] \"GET /rate HTTP/1.1\" 200 0\n").unwrap();
+    let started = Instant::now();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--duration",
+            "50ms",
+            "--timeout",
+            "20ms",
+            "--connections",
+            "10",
+            "--access-log",
+            path.to_str().unwrap(),
+            "--replay-rate",
+            "1",
+            &format!("http://{address}/"),
+        ])
+        .output()
+        .unwrap();
+    let elapsed = started.elapsed();
+    fs::remove_file(path).unwrap();
+    drop(listener);
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(elapsed < Duration::from_secs(1), "elapsed: {elapsed:?}");
+}
+
+#[test]
+fn cli_replays_access_log_with_scaled_timestamp_gaps() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut arrivals = Vec::new();
+        for _ in 0..2 {
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                let mut byte = [0];
+                stream.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            arrivals.push(Instant::now());
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        }
+        arrivals
+    });
+    let path = env::temp_dir().join(format!("rload-timestamp-{}.log", std::process::id()));
+    fs::write(
+        &path,
+        "127.0.0.1 - - [10/Oct/2000:13:55:36.000 -0700] \"GET /one HTTP/1.1\" 200 0\n\
+         127.0.0.1 - - [10/Oct/2000:13:55:36.200 -0700] \"GET /two HTTP/1.1\" 200 0\n",
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--requests",
+            "2",
+            "--connections",
+            "1",
+            "--access-log",
+            path.to_str().unwrap(),
+            "--replay-timestamps",
+            "--replay-speed",
+            "2",
+            &format!("http://{address}/"),
+        ])
+        .output()
+        .unwrap();
+    fs::remove_file(path).unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let arrivals = server.join().unwrap();
+    let gap = arrivals[1].duration_since(arrivals[0]);
+    assert!(gap >= Duration::from_millis(80), "gap: {gap:?}");
+    assert!(gap < Duration::from_millis(500), "gap: {gap:?}");
+    assert!(
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .contains("Timestamp replay speed: 2.000x")
+    );
+}
+
+#[test]
+fn cli_rejects_invalid_timestamp_replay_combinations() {
+    let path = env::temp_dir().join(format!(
+        "rload-timestamp-invalid-{}.log",
+        std::process::id()
+    ));
+    fs::write(&path, "127.0.0.1 - - [date] \"GET / HTTP/1.1\" 200 0\n").unwrap();
+    for arguments in [
+        vec!["--replay-timestamps", "--replay-rate", "1"],
+        vec!["--replay-timestamps", "--replay-order", "random"],
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+            .args(arguments)
+            .args([
+                "--access-log",
+                path.to_str().unwrap(),
+                "http://127.0.0.1:1/",
+            ])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+    }
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--requests",
+            "1",
+            "--access-log",
+            path.to_str().unwrap(),
+            "--replay-timestamps",
+            "http://127.0.0.1:1/",
+        ])
+        .output()
+        .unwrap();
+    fs::remove_file(path).unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("valid timestamp"));
+}
+
+#[test]
+fn cli_applies_replay_rate_stages() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut arrivals = Vec::new();
+        for _ in 0..5 {
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                let mut byte = [0];
+                stream.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            arrivals.push(Instant::now());
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        }
+        arrivals
+    });
+    let path = env::temp_dir().join(format!("rload-stages-{}.log", std::process::id()));
+    fs::write(&path, "127.0.0.1 - - [date] \"GET / HTTP/1.1\" 200 0\n").unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--requests",
+            "5",
+            "--connections",
+            "1",
+            "--access-log",
+            path.to_str().unwrap(),
+            "--replay-stages",
+            "200ms:5,200ms:20",
+            &format!("http://{address}/"),
+        ])
+        .output()
+        .unwrap();
+    fs::remove_file(path).unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let arrivals = server.join().unwrap();
+    let baseline_gap = arrivals[1].duration_since(arrivals[0]);
+    let burst_gap = arrivals[2].duration_since(arrivals[1]);
+    assert!(
+        baseline_gap >= Duration::from_millis(150),
+        "baseline gap: {baseline_gap:?}"
+    );
+    assert!(
+        burst_gap < Duration::from_millis(150),
+        "burst gap: {burst_gap:?}"
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("Replay stages:"));
+}
+
+#[test]
+fn cli_rejects_invalid_replay_stages() {
+    for arguments in [
+        vec!["--replay-stages", "1s:0"],
+        vec!["--replay-stages", "invalid"],
+        vec!["--replay-stages", "1s:10", "--replay-rate", "10"],
+        vec!["--replay-stages", "1s:10", "--replay-timestamps"],
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+            .args(arguments)
+            .args([
+                "--access-log",
+                "/does/not/matter.log",
+                "http://127.0.0.1:1/",
+            ])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+    }
 }
 
 #[test]
