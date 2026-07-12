@@ -3,6 +3,7 @@ mod config;
 mod engine;
 mod error;
 mod metrics;
+pub mod pacer;
 mod protocol;
 mod replay_filter;
 mod request_file;
