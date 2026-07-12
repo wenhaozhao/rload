@@ -171,6 +171,23 @@ the final rate remains active. Stages work with sequential, shuffle, or random
 selection and with either replay input format. They are mutually exclusive with
 `--replay-rate` and `--replay-timestamps`.
 
+### Machine-readable results
+
+Use `--output-format json` when integrating rload with CI, dashboards, or the
+planned GUI:
+
+```bash
+rload -t2 -c100 -d30s --output-format json http://127.0.0.1/ > result.json
+```
+
+JSON output is one document on stdout with `schema_version: 1`. Durations and
+latencies use integer microseconds. It includes aggregate throughput, latency
+percentiles, HTTP status and method statistics, socket errors, URI Top-20
+estimates, filtered/skipped replay records, and the active fixed-rate,
+timestamp, or stage pacing configuration. Configuration and runtime errors
+remain on stderr and return a non-zero exit status. The default `text` format
+is unchanged.
+
 URI Top-20 counts use a bounded Space-Saving estimate. For each entry, the true
 request count is between `estimated_requests - maximum_error` and
 `estimated_requests`; the reported error is therefore a one-sided maximum

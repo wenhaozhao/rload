@@ -32,6 +32,10 @@
    Timed rate stages support baseline, spike, and recovery profiles, hold the
    final rate after the profile ends, and remain independent from sequential,
    shuffle, or random request selection.
+8. Versioned machine-readable output is implemented with
+   `--output-format json`. Schema version 1 covers aggregate, latency, HTTP,
+   method, URI, socket-error, replay filtering/skipping, and pacing fields while
+   preserving the existing text output as the default.
 
 ## Future candidate features
 
@@ -54,8 +58,7 @@
   unconditional parity across environments.
 - Define the skipped-record output schema and verify that skipped access-log
    entries do not affect sent-request latency, throughput, or URI statistics.
-- Add machine-readable output for pacing configuration and stage transitions.
-  Fixed-rate, timestamp, and stage pacing are mutually exclusive and covered by
+- Fixed-rate, timestamp, and stage pacing are mutually exclusive and covered by
   multiplier, precision, transition, and duration-boundary tests.
 
 ## Benchmark policy

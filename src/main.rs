@@ -6,9 +6,15 @@ use std::time::Duration;
 
 use rload::{
     MAX_REQUEST_BODY_BYTES, Method, ReplayFilter, ReplayOptions, ReplayOrder, ReplayStage,
-    RequestOptions, RunConfig, RunLimit, run, run_access_log_with_filter,
+    RequestOptions, RunConfig, RunLimit, RunSummary, run, run_access_log_with_filter,
     run_request_file_with_filter, run_with_request,
 };
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum OutputFormat {
+    Text,
+    Json,
+}
 
 fn main() -> ExitCode {
     match execute(env::args().skip(1)) {
@@ -38,6 +44,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     let mut replay_speed = 1.0;
     let mut replay_speed_was_set = false;
     let mut replay_stages = Vec::new();
+    let mut output_format = OutputFormat::Text;
     let mut method = Method::Get;
     let mut method_was_set = false;
     let mut headers = Vec::new();
@@ -137,6 +144,20 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                     .next()
                     .ok_or_else(|| "--replay-stages requires a value".to_owned())?;
                 replay_stages = parse_replay_stages(&value)?;
+            }
+            "--output-format" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| "--output-format requires a value".to_owned())?;
+                output_format = match value.as_str() {
+                    "text" => OutputFormat::Text,
+                    "json" => OutputFormat::Json,
+                    _ => {
+                        return Err(format!(
+                            "invalid output format: {value}; expected text or json"
+                        ));
+                    }
+                };
             }
             "-X" | "--request" => {
                 let value = attached_value
@@ -342,6 +363,10 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
         (Some(_), Some(_)) => unreachable!("replay inputs are mutually exclusive"),
     }
     .map_err(|error| error.to_string())?;
+    if output_format == OutputFormat::Json {
+        print_json(&summary, &replay_options, whitelist_was_set)?;
+        return Ok(());
+    }
     let average_latency = summary.latencies.mean();
 
     println!("{} requests completed", summary.completed);
@@ -449,6 +474,98 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     Ok(())
 }
 
+fn print_json(
+    summary: &RunSummary,
+    replay_options: &ReplayOptions,
+    whitelist_was_set: bool,
+) -> Result<(), String> {
+    let methods = Method::ALL
+        .into_iter()
+        .filter_map(|method| {
+            let statistics = summary.method(method);
+            (statistics.completed > 0).then(|| {
+                (
+                    method.as_str().to_owned(),
+                    serde_json::json!({
+                        "requests": statistics.completed,
+                        "status_errors": statistics.status_errors,
+                        "average_latency_us": duration_us(statistics.latencies.mean()),
+                    }),
+                )
+            })
+        })
+        .collect::<serde_json::Map<_, _>>();
+    let statuses = summary
+        .observed_statuses()
+        .map(|(status, count)| (status.to_string(), serde_json::json!(count)))
+        .collect::<serde_json::Map<_, _>>();
+    let stages = replay_options
+        .stages
+        .iter()
+        .map(|stage| {
+            serde_json::json!({
+                "duration_us": duration_us(stage.duration),
+                "rate": stage.rate,
+            })
+        })
+        .collect::<Vec<_>>();
+    let skipped_total: u64 = summary.skipped_access_log_methods.values().sum();
+    let result = serde_json::json!({
+        "schema_version": 1,
+        "summary": {
+            "completed_requests": summary.completed,
+            "response_body_bytes": summary.response_body_bytes,
+            "runtime_us": duration_us(summary.runtime),
+            "load_runtime_us": duration_us(summary.load_runtime),
+            "drain_runtime_us": duration_us(summary.drain_runtime),
+            "requests_per_sec": summary.completed as f64 / summary.runtime.as_secs_f64(),
+            "load_requests_per_sec": summary.completed as f64 / summary.load_runtime.as_secs_f64(),
+            "status_errors": summary.status_errors,
+        },
+        "latency": {
+            "average_us": duration_us(summary.latencies.mean()),
+            "p50_us": duration_us(summary.latencies.percentile(50.0).expect("valid percentile")),
+            "p75_us": duration_us(summary.latencies.percentile(75.0).expect("valid percentile")),
+            "p90_us": duration_us(summary.latencies.percentile(90.0).expect("valid percentile")),
+            "p99_us": duration_us(summary.latencies.percentile(99.0).expect("valid percentile")),
+            "overflow_count": summary.latencies.overflow_count(),
+            "correction_interval_us": summary.coordinated_omission_interval.map(duration_us),
+        },
+        "socket_errors": {
+            "connect": summary.socket_errors.connect,
+            "read": summary.socket_errors.read,
+            "write": summary.socket_errors.write,
+            "timeout": summary.socket_errors.timeout,
+            "total": summary.socket_errors.total(),
+        },
+        "methods": methods,
+        "http_statuses": statuses,
+        "uri_top": summary.top_uris().into_iter().map(|uri| serde_json::json!({
+            "uri": uri.uri.as_ref(),
+            "estimated_requests": uri.estimated_requests,
+            "maximum_error": uri.maximum_error,
+        })).collect::<Vec<_>>(),
+        "replay": {
+            "configured_rate": summary.configured_replay_rate,
+            "measured_rate": summary.configured_replay_rate.map(|_| summary.completed as f64 / summary.load_runtime.as_secs_f64()),
+            "timestamp_speed": replay_options.timestamps.then_some(replay_options.speed),
+            "stages": stages,
+            "filtered_entries": whitelist_was_set.then_some(summary.filtered_replay_entries),
+            "skipped_entries": skipped_total,
+            "skipped_methods": summary.skipped_access_log_methods,
+        },
+    });
+    println!(
+        "{}",
+        serde_json::to_string(&result).map_err(|error| error.to_string())?
+    );
+    Ok(())
+}
+
+fn duration_us(duration: Duration) -> u64 {
+    u64::try_from(duration.as_micros()).unwrap_or(u64::MAX)
+}
+
 fn print_help() {
     println!("Usage: rload [OPTIONS] <URL>");
     println!("\nOptions:");
@@ -466,6 +583,7 @@ fn print_help() {
     println!("      --replay-timestamps  Pace access-log replay by timestamps");
     println!("      --replay-speed <N>   Timestamp playback multiplier [default: 1.0]");
     println!("      --replay-stages <D:R,...>  Timed replay-rate stages");
+    println!("      --output-format <FORMAT>  text or json [default: text]");
     println!("  -X, --request <METHOD>  HTTP method for an ordinary request");
     println!("  -H, --header <HEADER>  Request header; may be repeated");
     println!("      --data <DATA>    UTF-8 body; repeated values are joined with '&'");

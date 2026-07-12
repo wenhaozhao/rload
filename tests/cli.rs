@@ -39,6 +39,62 @@ fn cli_runs_http_load_and_prints_summary() {
 }
 
 #[test]
+fn cli_outputs_machine_readable_json_summary() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = Vec::new();
+        while !request.ends_with(b"\r\n\r\n") {
+            let mut byte = [0];
+            stream.read_exact(&mut byte).unwrap();
+            request.push(byte[0]);
+        }
+        stream
+            .write_all(b"HTTP/1.1 201 Created\r\nContent-Length: 2\r\n\r\nOK")
+            .unwrap();
+    });
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--requests",
+            "1",
+            "--output-format",
+            "json",
+            &format!("http://{address}/json"),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stderr.is_empty());
+    let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["schema_version"], 1);
+    assert_eq!(result["summary"]["completed_requests"], 1);
+    assert_eq!(result["summary"]["response_body_bytes"], 2);
+    assert_eq!(result["methods"]["GET"]["requests"], 1);
+    assert_eq!(result["http_statuses"]["201"], 1);
+    assert!(result["latency"]["p99_us"].as_u64().is_some());
+    assert_eq!(result["replay"]["configured_rate"], serde_json::Value::Null);
+    server.join().unwrap();
+}
+
+#[test]
+fn cli_rejects_unknown_output_format() {
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args(["--output-format", "xml", "http://127.0.0.1:1/"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("expected text or json"));
+}
+
+#[test]
 fn cli_accepts_attached_request_count() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
