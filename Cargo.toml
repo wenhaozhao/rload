@@ -1,0 +1,26 @@
+[package]
+name = "rload"
+version = "0.1.0"
+edition = "2024"
+default-run = "rload"
+description = "A Rust HTTP/1.1 load generator with Nginx access-log and JSONL replay"
+readme = "README.md"
+license-file = "../LICENSE"
+keywords = ["benchmark", "http", "load-testing", "nginx"]
+categories = ["command-line-utilities", "development-tools::profiling"]
+repository = ""
+
+[[bin]]
+name = "rload"
+path = "src/main.rs"
+
+[dependencies]
+hdrhistogram = { version = "7.5.4", default-features = false }
+mio = { version = "1.2.0", features = ["net", "os-poll"] }
+rustls = { version = "0.23.40", default-features = false, features = ["ring", "std", "tls12"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+webpki-roots = "1.0.8"
+
+[dev-dependencies]
+rcgen = { version = "0.14.8", default-features = false, features = ["crypto", "ring"] }

@@ -1,0 +1,202 @@
+# rload
+
+`rload` is a Rust HTTP load generator with wrk-compatible CLI semantics,
+Nginx access-log replay, and structured JSONL request replay.
+
+The current vertical slice provides:
+
+- non-blocking HTTP/1.1 GET requests over HTTP or HTTPS using fixed worker threads;
+- TLS SNI, Mozilla root certificate validation, and encrypted connection reuse;
+- ordered, cyclic replay of `GET` and `HEAD` requests from Nginx common or combined access logs;
+- exact per-method latency/error summaries and HTTP status-code counts;
+- bounded URI Top-20 heavy-hitter estimates with explicit maximum error;
+- persistent connections with request-count or duration limits;
+- socket-error accounting and connection recovery during duration-limited runs;
+- `Content-Length`, chunked, and connection-close response framing;
+- completed request, response body byte, status error, and average latency output.
+
+Lua and LuaJIT compatibility are explicitly out of scope.
+
+## Build and install
+
+The current release baseline is validated with stable Rust 1.96.1 on macOS
+arm64. The runtime uses portable Rust crates, but Linux and other targets remain
+release candidates until the same test and benchmark gates run in CI on those
+platforms.
+
+Build or install directly from this checkout:
+
+```sh
+cargo build --release --manifest-path r-wrk/Cargo.toml
+cargo install --path r-wrk
+rload --help
+```
+
+When already inside the crate directory, omit the manifest/path prefixes. The repository's
+modified Apache license text remains authoritative. Before distributing a
+binary or publishing a package, manually confirm that the chosen product and
+package names comply with its derivative-work naming clause.
+
+## Usage
+
+```sh
+cargo run --release -- --requests 10 http://127.0.0.1:8080/
+cargo run --release -- --threads 2 --connections 10 --duration 30s http://127.0.0.1:8080/
+cargo run --release -- --threads 2 --connections 10 --duration 30s https://example.com/
+cargo run --release -- -d 30s -X POST -H 'Content-Type: application/json' \
+  --data '{"id":1}' https://example.com/api/items
+cargo run --release -- --threads 2 --connections 10 --duration 30s \
+  --access-log /var/log/nginx/access.log https://staging.example.com/
+cargo run --release -- --requests 1000 --access-log ./access.log \
+  --replay-order shuffle --seed 42 https://staging.example.com/
+cargo run --release -- --duration 30s --request-file ./requests.jsonl \
+  --replay-order shuffle --seed 42 https://staging.example.com/
+```
+
+Ordinary requests use a curl-compatible subset while preserving wrk's option
+meanings: `-X/--request`, repeatable `-H/--header`, repeatable `--data`, and
+`--data-binary @FILE`. The short `-d` remains the wrk duration option; it never
+means request data. Multiple `--data` values are joined with `&`, and specifying
+data without `-X` selects POST. Binary files are sent byte-for-byte. The same
+managed-header, URI, and 512 KiB body limits used by JSONL apply here.
+
+Common wrk command lines remain valid: compact `-t2`, `-c100`, `-n1000`,
+`-d30s`, and `-T2s` forms are accepted; times support bare seconds plus `s`, `m`, and `h`;
+`-T/--timeout` controls connection/request timeout,
+and `--latency` is accepted as a compatibility flag (the latency distribution
+is always printed). With no explicit load options, the wrk-compatible defaults
+are a 10-second run with two worker threads and ten connections.
+
+During a duration-limited run, a request timeout, reset, or premature EOF is
+counted as a socket error and the affected connection is rebuilt while time
+remains. Request-count-limited runs still return an error for these failures so
+a permanently unavailable target cannot make a finite run wait forever.
+Socket errors are reported using wrk-style `connect`, `read`, `write`, and
+`timeout` categories; failure and recovery are isolated to the affected
+connection. If a duration-limited target remains unresponsive for the whole
+run, the command still returns a valid summary with zero completed requests and
+the accumulated timeout count after the configured duration expires. The same
+bounded behavior applies when every connection attempt is refused: attempts are
+counted as `connect` errors and the run ends normally at its duration limit. If
+the target becomes available again before that limit, affected connections
+resume sending requests without restarting the load-test process.
+
+Access-log replay reads the quoted Nginx `$request` field, preserves its
+origin-form URI (including the query string), and cycles through the log in
+order until the request-count or duration limit is reached. Empty logs,
+malformed request lines, and methods other than `GET` or `HEAD` fail with the
+source line number. Request bodies and original timestamp pacing are not yet
+supported.
+
+Replay order is `sequential` by default. `shuffle` visits every entry exactly
+once per round and reshuffles before the next round; `random` independently
+samples an entry for every request and can repeat entries. `--seed` makes either
+randomized allocation sequence reproducible. With multiple connections, the
+allocation sequence remains deterministic but network arrival order can vary.
+
+URI Top-20 counts use a bounded Space-Saving estimate. For each entry, the true
+request count is between `estimated_requests - maximum_error` and
+`estimated_requests`; the reported error is therefore a one-sided maximum
+overcount, not a symmetric confidence interval.
+
+Structured request replay accepts one JSON object per line:
+
+```json
+{"method":"POST","uri":"/api/items","headers":{"content-type":"application/json"},"body":"{\"id\":1}"}
+```
+
+Supported methods are `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`, and
+`OPTIONS`. Bodies are UTF-8 strings. `Host`, `Connection`, and `Content-Length`
+are managed by the engine and must not appear in the JSON headers. JSONL and
+access-log inputs are mutually exclusive; both support the same replay-order
+options. Each JSONL record is limited to 1 MiB, with an 8 KiB URI, 64 KiB of
+headers, and a 512 KiB UTF-8 body. `Transfer-Encoding`, `Trailer`, and `Expect`
+are also rejected because this release sends fixed-length request bodies
+without an HTTP/1.1 continue handshake.
+
+Replay inputs can be reduced with method and URI whitelists:
+
+```sh
+--allowed-methods GET,POST --allowed-uris '/api/*,/health'
+```
+
+URI patterns use a small deterministic glob syntax where `*` matches any
+sequence and every other character is literal. Method and URI filters form an
+intersection. Filtered entries are counted in the summary, and a whitelist that
+excludes the entire input is an error. Whitelist options are not valid for an
+ordinary single request. At most 32 URI patterns may be supplied, each no longer
+than 256 bytes, which bounds wildcard matching work for large logs.
+
+### Optional replay features
+
+The following capabilities are recorded for later evaluation and are not part
+of the current implementation or acceptance scope:
+
+- replay frequency control with a fixed global request rate;
+- original access-log timestamp pacing and playback-speed scaling;
+- per-stage or burst rate profiles.
+- optional `--target` syntax and target inference for custom Nginx log formats
+  that explicitly record scheme, host, and port.
+
+Until one of these optional modes is implemented, access-log replay remains a
+maximum-throughput workload: each connection sends its next request as soon as
+the previous response completes.
+
+Measure replay overhead against the static-request path with:
+
+```sh
+ENTRIES=100000 CONNECTIONS=100 DURATION=5 ./benchmarks/replay.sh
+REPLAY_ORDER=shuffle SEED=42 ./benchmarks/replay.sh
+./benchmarks/replay_matrix.sh
+```
+
+The repeatable benchmark uses at least three paired runs with alternating order
+and reports median throughput loss, its range, total RSS growth, and bytes per
+loaded log entry. The matrix additionally validates the RSS slope between 100k
+and 500k entries. Current gates are at most 10% throughput loss and between 0
+and 256 bytes of incremental RSS per entry.
+
+The 2026-07-11 sequential-replay acceptance matrix passed both scales. At 100k
+entries, median throughput loss was -1.68% and incremental RSS was 250.8
+B/entry. At 500k entries, the corresponding values were +1.08% and 249.6
+B/entry. The measured RSS scaling slope was 248.8 B/entry. These local results
+are regression evidence rather than a cross-platform memory guarantee.
+
+Run the tests and lints with:
+
+```sh
+cargo test
+cargo clippy --all-targets -- -D warnings
+```
+
+Run the complete local release gate with:
+
+```sh
+./scripts/release-check.sh
+```
+
+## Benchmarking
+
+Run the repeatable local comparison against wrk with:
+
+```sh
+./benchmarks/run.sh
+```
+
+Override `DURATION`, `THREADS`, `CONNECTIONS`, or `RUNS` through environment
+variables. `DELAY_US` adds a fixed server delay and `JITTER_US` adds deterministic
+uniform jitter, which makes tail-latency comparisons repeatable. Raw command
+output, CPU time, maximum RSS, and environment details are written under
+`benchmarks/results/`.
+
+Analyze one or more result directories with:
+
+```sh
+python3 benchmarks/accuracy.py benchmarks/results/<timestamp> [...]
+```
+
+The checker reports paired relative bias, mean absolute error, standard
+deviation, a 95% confidence interval, and range. It enforces 3% MAE for
+throughput and central latency, 5% MAE for P90, and 5% median absolute error for
+P99. At least three paired runs are required. See
+[`benchmarks/ACCURACY.md`](benchmarks/ACCURACY.md) for the methodology.
