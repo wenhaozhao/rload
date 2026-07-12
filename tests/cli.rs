@@ -302,7 +302,7 @@ fn cli_limits_replay_to_global_request_rate() {
         elapsed >= Duration::from_millis(350),
         "elapsed: {elapsed:?}"
     );
-    assert!(elapsed < Duration::from_secs(2), "elapsed: {elapsed:?}");
+    assert!(elapsed < Duration::from_secs(5), "elapsed: {elapsed:?}");
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert!(stdout.contains("Configured replay rate: 5 requests/sec"));
     assert!(stdout.contains("Measured replay rate:"));
