@@ -40,6 +40,11 @@
   scheme, host, and port. This is intentionally not scheduled for 0.2.0;
   standard origin-form logs do not contain enough information to infer a target
   safely.
+- Optional GUI configuration interface built on top of the rload engine. The
+  GUI should configure and validate workloads, launch or attach to an rload
+  execution, and present live/final statistics without moving load-generation
+  logic into the UI. The CLI and engine must remain usable without GUI
+  dependencies.
 
 ## Deferred follow-up work
 

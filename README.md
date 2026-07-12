@@ -60,12 +60,15 @@ result is intentionally called out rather than rounded into a pass.
 | Replay seed and method/URI whitelists | No native mode | Yes; deterministic seed plus intersection filters |
 | Replay frequency/timestamp pacing/burst profiles | Custom scripting only | Planned 0.2.0 features, not implemented yet |
 | Automatic target inference from access-log entries | No native mode | Future candidate only; target URL is currently explicit |
+| GUI configuration interface | No native mode | Future optional feature layered on the rload engine |
 
 The result is intentionally a wrk-compatible load generator rather than a
 drop-in replacement for every wrk extension: core command-line behavior and
 static HTTP load are covered, while Lua compatibility is outside the first
 release scope. The additional replay modes are the main functional expansion
-provided by rload.
+provided by rload. A future GUI, if built, will be a configuration and
+observability layer over the same engine; it will not replace the standalone
+CLI or duplicate load-generation logic.
 
 ## Build and install
 
