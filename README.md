@@ -185,7 +185,8 @@ The following capabilities are recorded for later evaluation and are not part
 of the current implementation or acceptance scope:
 
 - replay frequency control with a fixed global request rate;
-- original access-log timestamp pacing and playback-speed scaling;
+- original access-log timestamp pacing and playback-speed scaling, including
+  explicit handling for second-only versus sub-second timestamps;
 - per-stage or burst rate profiles, such as a baseline rate followed by a timed
   spike and recovery;
 - optional `--target` syntax and target inference for custom Nginx log formats

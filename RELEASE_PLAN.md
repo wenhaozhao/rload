@@ -16,15 +16,19 @@
    and a smoke HTTP run.
 2. Publish a signed changelog and migration notes from the old internal
    `r-wrk` name to `rload`.
-3. Add optional traffic-shape controls in 0.2.0: a fixed global request rate,
-   original timestamp pacing, and configurable burst/stage rate profiles; keep
-   target inference as a separate decision. These features remain unimplemented.
-4. Keep Lua/LuaJIT out of the first release line unless a separate compatibility
+3. Add replay rate control in 0.2.0: a fixed global request rate with explicit
+   pacing semantics, validation, and measured-rate reporting. This remains
+   independent from request selection order and burst profiles.
+4. Add access-log timestamp pacing in 0.2.0: preserve inter-record timestamp
+   gaps, support a playback multiplier, define behavior for second-only versus
+   sub-second timestamps, and report timestamp gaps that cannot be reproduced.
+   This remains independent from fixed-rate and burst modes.
+5. Keep Lua/LuaJIT out of the first release line unless a separate compatibility
    design and licensing review is approved.
-5. For 0.2.0, add tolerant access-log replay: skip unsupported methods instead of
+6. For 0.2.0, add tolerant access-log replay: skip unsupported methods instead of
    aborting the input, track skipped records by method and total, and include
    those counts in the final load summary and machine-readable result contract.
-6. For 0.2.0, add burst/stage traffic models that control send rate over time
+7. For 0.2.0, add burst/stage traffic models that control send rate over time
    (for example, a baseline rate followed by a timed spike and recovery). Keep
    this independent from request selection order: sequential, shuffle, and
    random determine which request is selected, while burst profiles determine
@@ -37,8 +41,11 @@
   preparation.
 - Investigate and resolve the zero-delay P99 sensitivity before claiming
   unconditional parity across environments.
-- Define the skipped-record output schema and verify that skipped access-log
-  entries do not affect sent-request latency, throughput, or URI statistics.
+ - Define the skipped-record output schema and verify that skipped access-log
+   entries do not affect sent-request latency, throughput, or URI statistics.
+- Define mutually exclusive/composable rules for fixed-rate, timestamp, and
+  burst pacing, then add deterministic tests for rate, multiplier, timestamp
+  precision, and end-of-run behavior.
 
 ## Release checklist
 
