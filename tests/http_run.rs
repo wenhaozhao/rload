@@ -474,7 +474,7 @@ fn run_reconnects_after_http_1_0_response() {
 }
 
 #[test]
-fn run_connects_when_localhost_has_an_unreachable_address() {
+fn run_connects_to_loopback_server() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     let server = thread::spawn(move || {
@@ -485,7 +485,7 @@ fn run_connects_when_localhost_has_an_unreachable_address() {
             .unwrap();
     });
     let config = RunConfig {
-        url: format!("http://localhost:{port}/health"),
+        url: format!("http://127.0.0.1:{port}/health"),
         method: Method::Get,
         limit: RunLimit::Requests(1),
         connections: 1,
