@@ -1,4 +1,4 @@
-# Rload (r-wrk) Competitor Analysis, Strategic Positioning, and Technical Roadmap
+# rload Competitor Analysis, Strategic Positioning, and Technical Roadmap
 
 As cloud-native architectures, microservices, and high-concurrency systems become ubiquitous, production traffic exhibits high dynamics, burstiness, and heterogeneity. Traditional **static single-endpoint load testing** (such as hitting a single static URL in a loop) is no longer sufficient to simulate actual bottleneck behaviors of systems under realistic production workloads.
 
