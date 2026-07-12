@@ -20,6 +20,9 @@
    target inference belong in 0.2.0; they remain optional and unimplemented.
 4. Keep Lua/LuaJIT out of the first release line unless a separate compatibility
    design and licensing review is approved.
+5. For 0.2.0, add tolerant access-log replay: skip unsupported methods instead of
+   aborting the input, track skipped records by method and total, and include
+   those counts in the final load summary and machine-readable result contract.
 
 ## Deferred follow-up work
 
@@ -28,6 +31,8 @@
   preparation.
 - Investigate and resolve the zero-delay P99 sensitivity before claiming
   unconditional parity across environments.
+- Define the skipped-record output schema and verify that skipped access-log
+  entries do not affect sent-request latency, throughput, or URI statistics.
 
 ## Release checklist
 
