@@ -633,15 +633,18 @@ fn run_worker(
                 }
                 Expiration::ConnectionTimeout => {
                     summary.socket_errors.connect += 1;
-                    if connection.recover_request(poll.registry(), Token(token))? {
-                        schedule_deadline(&mut deadlines, Token(token), connection, timeout);
-                    } else if connection.stop_after_duration_error(poll.registry())? {
-                        active -= 1;
+                    let timeout_error =
+                        std::io::Error::new(std::io::ErrorKind::TimedOut, "connection timed out");
+                    if let Err(error) =
+                        connection.retry_address(timeout_error, poll.registry(), Token(token))
+                    {
+                        if connection.stop_after_duration_error(poll.registry())? {
+                            active -= 1;
+                        } else {
+                            return Err(error);
+                        }
                     } else {
-                        return Err(RunError::Io(std::io::Error::new(
-                            std::io::ErrorKind::TimedOut,
-                            "connection timed out",
-                        )));
+                        schedule_deadline(&mut deadlines, Token(token), connection, timeout);
                     }
                 }
             }
