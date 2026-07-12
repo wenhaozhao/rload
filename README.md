@@ -3,6 +3,8 @@
 `rload` is a Rust HTTP load generator with wrk-compatible CLI semantics,
 Nginx access-log replay, and structured JSONL request replay.
 
+Official website: [wenhaozhao.github.io/rload](https://wenhaozhao.github.io/rload/)
+
 The current vertical slice provides:
 
 - non-blocking HTTP/1.1 GET requests over HTTP or HTTPS using fixed worker threads;
