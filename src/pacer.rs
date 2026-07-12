@@ -6,6 +6,16 @@ pub struct Pacer {
     next: Mutex<Instant>,
 }
 
+pub struct TimestampPacer {
+    speed: f64,
+    state: Mutex<TimestampState>,
+}
+
+struct TimestampState {
+    previous_micros: Option<i64>,
+    next: Instant,
+}
+
 impl Pacer {
     pub fn new(rate: u64, started: Instant) -> Self {
         debug_assert!(rate > 0);
@@ -23,6 +33,33 @@ impl Pacer {
         let scheduled = (*next).max(now);
         *next = scheduled + self.interval;
         scheduled
+    }
+}
+
+impl TimestampPacer {
+    pub fn new(speed: f64, started: Instant) -> Self {
+        Self {
+            speed,
+            state: Mutex::new(TimestampState {
+                previous_micros: None,
+                next: started,
+            }),
+        }
+    }
+
+    pub fn reserve(&self, timestamp_micros: i64, now: Instant) -> Instant {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let gap = state
+            .previous_micros
+            .filter(|previous| timestamp_micros >= *previous)
+            .map_or(0, |previous| timestamp_micros - previous);
+        state.next =
+            state.next.max(now) + Duration::from_secs_f64(gap as f64 / 1_000_000.0 / self.speed);
+        state.previous_micros = Some(timestamp_micros);
+        state.next
     }
 }
 
@@ -57,5 +94,21 @@ mod tests {
         let resumed = started + Duration::from_secs(1);
 
         assert_eq!(pacer.reserve(resumed), resumed);
+    }
+
+    #[test]
+    fn timestamp_gaps_are_scaled_and_wrap_without_an_invented_gap() {
+        let started = Instant::now();
+        let pacer = TimestampPacer::new(2.0, started);
+
+        assert_eq!(pacer.reserve(1_000_000, started), started);
+        assert_eq!(
+            pacer.reserve(2_000_000, started),
+            started + Duration::from_millis(500)
+        );
+        assert_eq!(
+            pacer.reserve(1_000_000, started),
+            started + Duration::from_millis(500)
+        );
     }
 }

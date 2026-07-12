@@ -60,7 +60,7 @@ result is intentionally called out rather than rounded into a pass.
 | Nginx access-log replay | No native mode | Yes; common/combined logs, `GET`/`HEAD`, sequential/shuffle/random order; unsupported methods are skipped and reported |
 | JSONL request replay | No native mode | Yes; methods, headers, UTF-8 bodies, and per-record limits |
 | Replay seed and method/URI whitelists | No native mode | Yes; deterministic seed plus intersection filters |
-| Replay frequency/timestamp pacing/burst profiles | Custom scripting only | Fixed global replay rate implemented; timestamp and burst pacing remain planned |
+| Replay frequency/timestamp pacing/burst profiles | Custom scripting only | Fixed global rate and timestamp-speed pacing implemented; burst profiles remain planned |
 | Automatic target inference from access-log entries | No native mode | Future candidate only; target URL is currently explicit |
 | GUI configuration interface | No native mode | Future optional feature layered on the rload engine |
 
@@ -143,8 +143,8 @@ order until the request-count or duration limit is reached. Empty logs and
 malformed request lines fail with the source line number. Methods other than
 `GET` or `HEAD` are skipped and reported by total and method-specific counters
 in the final summary; they are not sent or included in request
-latency/throughput statistics. Request bodies and original timestamp pacing are
-not yet supported.
+latency/throughput statistics. Request bodies are not supported in access-log
+mode.
 
 Replay order is `sequential` by default. `--replay-rate <RPS>` applies one
 global request rate across all replay workers and reports both configured and
@@ -153,6 +153,16 @@ once per round and reshuffles before the next round; `random` independently
 samples an entry for every request and can repeat entries. `--seed` makes either
 randomized allocation sequence reproducible. With multiple connections, the
 allocation sequence remains deterministic but network arrival order can vary.
+
+`--replay-timestamps` preserves gaps between adjacent Nginx access-log
+timestamps. The first request is immediate, and `--replay-speed <N>` scales
+subsequent gaps (`2` is twice as fast, `0.5` is half speed). Standard
+second-resolution `$time_local` values and fractional seconds up to microsecond
+precision are accepted. Records with the same timestamp are eligible to send
+without an added gap. Timestamp mode requires sequential access-log replay and
+is mutually exclusive with `--replay-rate`; missing or decreasing timestamps
+are rejected. When the log cycles, the next round begins immediately because
+an interval from the final record back to the first is not present in the log.
 
 URI Top-20 counts use a bounded Space-Saving estimate. For each entry, the true
 request count is between `estimated_requests - maximum_error` and
@@ -192,9 +202,6 @@ than 256 bytes, which bounds wildcard matching work for large logs.
 The following capabilities are recorded for later evaluation and are not part
 of the current implementation or acceptance scope:
 
-- replay frequency control with a fixed global request rate;
-- original access-log timestamp pacing and playback-speed scaling, including
-  explicit handling for second-only versus sub-second timestamps;
 - per-stage or burst rate profiles, such as a baseline rate followed by a timed
   spike and recovery;
 - target inference for custom Nginx log formats that explicitly record scheme,

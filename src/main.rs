@@ -34,6 +34,9 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     let mut replay_option_was_set = false;
     let mut seed = None;
     let mut replay_rate = None;
+    let mut replay_timestamps = false;
+    let mut replay_speed = 1.0;
+    let mut replay_speed_was_set = false;
     let mut method = Method::Get;
     let mut method_was_set = false;
     let mut headers = Vec::new();
@@ -114,6 +117,19 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                     return Err("replay rate must be greater than zero".into());
                 }
                 replay_rate = Some(rate);
+            }
+            "--replay-timestamps" => replay_timestamps = true,
+            "--replay-speed" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| "--replay-speed requires a value".to_owned())?;
+                replay_speed = value
+                    .parse::<f64>()
+                    .map_err(|_| format!("invalid replay speed: {value}"))?;
+                if !replay_speed.is_finite() || replay_speed <= 0.0 {
+                    return Err("replay speed must be a finite number greater than zero".into());
+                }
+                replay_speed_was_set = true;
             }
             "-X" | "--request" => {
                 let value = attached_value
@@ -251,6 +267,18 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     if replay_rate.is_some() && access_log.is_none() && request_file.is_none() {
         return Err("--replay-rate requires --access-log or --request-file".into());
     }
+    if replay_timestamps && access_log.is_none() {
+        return Err("--replay-timestamps requires --access-log".into());
+    }
+    if replay_speed_was_set && !replay_timestamps {
+        return Err("--replay-speed requires --replay-timestamps".into());
+    }
+    if replay_timestamps && replay_rate.is_some() {
+        return Err("--replay-timestamps cannot be combined with --replay-rate".into());
+    }
+    if replay_timestamps && replay_order != ReplayOrder::Sequential {
+        return Err("--replay-timestamps requires sequential replay order".into());
+    }
     if (!allowed_methods.is_empty() || !allowed_uris.is_empty())
         && access_log.is_none()
         && request_file.is_none()
@@ -277,6 +305,8 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
         order: replay_order,
         seed,
         rate: replay_rate,
+        timestamps: replay_timestamps,
+        speed: replay_speed,
     };
     let replay_filter = ReplayFilter {
         allowed_methods,
@@ -328,6 +358,9 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     );
     println!("Load window: {:.2?}", summary.load_runtime);
     println!("Drain time: {:.2?}", summary.drain_runtime);
+    if replay_options.timestamps {
+        println!("Timestamp replay speed: {:.3}x", replay_options.speed);
+    }
     if let Some(rate) = summary.configured_replay_rate {
         println!("Configured replay rate: {rate} requests/sec");
         println!(
@@ -405,6 +438,8 @@ fn print_help() {
     println!("      --replay-order <ORDER>  sequential, shuffle, or random [default: sequential]");
     println!("      --seed <N>       Reproducible seed for shuffle or random replay");
     println!("      --replay-rate <RPS>  Global replay request rate");
+    println!("      --replay-timestamps  Pace access-log replay by timestamps");
+    println!("      --replay-speed <N>   Timestamp playback multiplier [default: 1.0]");
     println!("  -X, --request <METHOD>  HTTP method for an ordinary request");
     println!("  -H, --header <HEADER>  Request header; may be repeated");
     println!("      --data <DATA>    UTF-8 body; repeated values are joined with '&'");

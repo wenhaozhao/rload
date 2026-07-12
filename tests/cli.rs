@@ -346,6 +346,106 @@ fn replay_pacing_does_not_block_duration_shutdown() {
 }
 
 #[test]
+fn cli_replays_access_log_with_scaled_timestamp_gaps() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut arrivals = Vec::new();
+        for _ in 0..2 {
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                let mut byte = [0];
+                stream.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            arrivals.push(Instant::now());
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        }
+        arrivals
+    });
+    let path = env::temp_dir().join(format!("rload-timestamp-{}.log", std::process::id()));
+    fs::write(
+        &path,
+        "127.0.0.1 - - [10/Oct/2000:13:55:36.000 -0700] \"GET /one HTTP/1.1\" 200 0\n\
+         127.0.0.1 - - [10/Oct/2000:13:55:36.200 -0700] \"GET /two HTTP/1.1\" 200 0\n",
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--requests",
+            "2",
+            "--connections",
+            "1",
+            "--access-log",
+            path.to_str().unwrap(),
+            "--replay-timestamps",
+            "--replay-speed",
+            "2",
+            &format!("http://{address}/"),
+        ])
+        .output()
+        .unwrap();
+    fs::remove_file(path).unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let arrivals = server.join().unwrap();
+    let gap = arrivals[1].duration_since(arrivals[0]);
+    assert!(gap >= Duration::from_millis(80), "gap: {gap:?}");
+    assert!(gap < Duration::from_millis(500), "gap: {gap:?}");
+    assert!(
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .contains("Timestamp replay speed: 2.000x")
+    );
+}
+
+#[test]
+fn cli_rejects_invalid_timestamp_replay_combinations() {
+    let path = env::temp_dir().join(format!(
+        "rload-timestamp-invalid-{}.log",
+        std::process::id()
+    ));
+    fs::write(&path, "127.0.0.1 - - [date] \"GET / HTTP/1.1\" 200 0\n").unwrap();
+    for arguments in [
+        vec!["--replay-timestamps", "--replay-rate", "1"],
+        vec!["--replay-timestamps", "--replay-order", "random"],
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+            .args(arguments)
+            .args([
+                "--access-log",
+                path.to_str().unwrap(),
+                "http://127.0.0.1:1/",
+            ])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+    }
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--requests",
+            "1",
+            "--access-log",
+            path.to_str().unwrap(),
+            "--replay-timestamps",
+            "http://127.0.0.1:1/",
+        ])
+        .output()
+        .unwrap();
+    fs::remove_file(path).unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("valid timestamp"));
+}
+
+#[test]
 fn cli_replays_jsonl_post_with_headers_and_body() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();

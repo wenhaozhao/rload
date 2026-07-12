@@ -78,6 +78,11 @@ pub fn run_request_file_with_filter(
     filter: ReplayFilter,
 ) -> Result<RunSummary, RunError> {
     validate_replay_options(options)?;
+    if options.timestamps {
+        return Err(RunError::InvalidConfig(
+            "timestamp pacing requires an access log".into(),
+        ));
+    }
     let replay = request_file::read(path.as_ref())?;
     let (replay, filtered) = replay_filter::apply(replay, &filter)?;
     run_with_roots(
@@ -104,6 +109,21 @@ fn validate_replay_options(options: ReplayOptions) -> Result<(), RunError> {
             "replay seed requires shuffle or random order".into(),
         ));
     }
+    if options.timestamps && options.order != ReplayOrder::Sequential {
+        return Err(RunError::InvalidConfig(
+            "timestamp pacing requires sequential replay order".into(),
+        ));
+    }
+    if options.timestamps && options.rate.is_some() {
+        return Err(RunError::InvalidConfig(
+            "timestamp pacing cannot be combined with a fixed replay rate".into(),
+        ));
+    }
+    if !options.speed.is_finite() || options.speed <= 0.0 {
+        return Err(RunError::InvalidConfig(
+            "replay speed must be a finite number greater than zero".into(),
+        ));
+    }
     Ok(())
 }
 
@@ -116,24 +136,35 @@ fn run_with_roots(
     config.validate()?;
     let (requests, filtered_replay_entries, skipped_access_log_methods, replay_rate) = match input {
         RequestInput::Replay(replay, options, filtered, skipped_methods) => (
-            RequestSequence::new(
-                replay
-                    .into_iter()
-                    .map(|request| {
-                        let uri_start = request.method.as_str().len() + 1;
-                        let uri = uri_start..uri_start + request.path.len();
-                        let bytes = target.replay_request(&request);
-                        EncodedRequest {
-                            bytes,
-                            method_uri_start: method_uri_start(request.method, uri.start),
-                            uri_end: uri.end as u32,
-                        }
-                    })
-                    .collect(),
-                options.order,
-                options.seed.unwrap_or_else(replay_seed),
-            )
-            .with_rate(options.rate),
+            {
+                if options.timestamps {
+                    validate_timestamps(&replay)?;
+                }
+                let sequence = RequestSequence::new(
+                    replay
+                        .into_iter()
+                        .map(|request| {
+                            let uri_start = request.method.as_str().len() + 1;
+                            let uri = uri_start..uri_start + request.path.len();
+                            let bytes = target.replay_request(&request);
+                            EncodedRequest {
+                                bytes,
+                                method_uri_start: method_uri_start(request.method, uri.start),
+                                uri_end: uri.end as u32,
+                                timestamp_micros: request.timestamp_micros,
+                            }
+                        })
+                        .collect(),
+                    options.order,
+                    options.seed.unwrap_or_else(replay_seed),
+                )
+                .with_rate(options.rate);
+                if options.timestamps {
+                    sequence.with_timestamps(options.speed)
+                } else {
+                    sequence
+                }
+            },
             filtered,
             skipped_methods,
             options.rate,
@@ -145,6 +176,7 @@ fn run_with_roots(
                 headers: options.headers,
                 body_present: options.body.is_some(),
                 body: options.body.unwrap_or_default(),
+                timestamp_micros: None,
             };
             validate_request(&request).map_err(RunError::InvalidConfig)?;
             let bytes = target.replay_request(&request);
@@ -157,6 +189,7 @@ fn run_with_roots(
                             request.method.as_str().len() + 1,
                         ),
                         uri_end: (request.method.as_str().len() + 1 + request.path.len()) as u32,
+                        timestamp_micros: None,
                     }],
                     ReplayOrder::Sequential,
                     0,
@@ -175,6 +208,7 @@ fn run_with_roots(
                         config.method.as_str().len() + 1,
                     ),
                     uri_end: (config.method.as_str().len() + 1 + target.path().len()) as u32,
+                    timestamp_micros: None,
                 }],
                 ReplayOrder::Sequential,
                 0,
@@ -242,6 +276,24 @@ fn run_with_roots(
         summary.coordinated_omission_interval = Some(expected);
     }
     Ok(summary)
+}
+
+fn validate_timestamps(requests: &[ReplayRequest]) -> Result<(), RunError> {
+    let mut previous = None;
+    for request in requests {
+        let timestamp = request.timestamp_micros.ok_or_else(|| {
+            RunError::InvalidAccessLog(
+                "timestamp pacing requires a valid timestamp on every replayable line".into(),
+            )
+        })?;
+        if previous.is_some_and(|previous| timestamp < previous) {
+            return Err(RunError::InvalidAccessLog(
+                "timestamp pacing requires non-decreasing log timestamps".into(),
+            ));
+        }
+        previous = Some(timestamp);
+    }
+    Ok(())
 }
 
 enum RequestInput {
@@ -402,6 +454,7 @@ mod tests {
                     bytes: Arc::from(&b"GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n"[..]),
                     method_uri_start: method_uri_start(Method::Get, 4),
                     uri_end: 11,
+                    timestamp_micros: None,
                 }],
                 ReplayOrder::Sequential,
                 0,

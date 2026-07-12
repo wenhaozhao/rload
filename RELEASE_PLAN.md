@@ -18,10 +18,11 @@
 3. Fixed global replay rate control is implemented on the 0.2.0 development
    branch with validation and configured/measured-rate reporting. It remains
    independent from request selection order and burst profiles.
-4. Add access-log timestamp pacing in 0.2.0: preserve inter-record timestamp
-   gaps, support a playback multiplier, define behavior for second-only versus
-   sub-second timestamps, and report timestamp gaps that cannot be reproduced.
-   This remains independent from fixed-rate and burst modes.
+4. Access-log timestamp pacing is implemented on the 0.2.0 development branch:
+   it preserves inter-record gaps, supports a playback multiplier, accepts
+   second or fractional-second timestamps, rejects missing/decreasing values,
+   and explicitly treats the unknowable loop-boundary gap as zero. It is
+   independent from request selection and mutually exclusive with fixed rate.
 5. Keep Lua/LuaJIT out of the first release line unless a separate compatibility
    design and licensing review is approved.
 6. Tolerant access-log replay is implemented on the 0.2.0 development branch:
@@ -54,9 +55,9 @@
   unconditional parity across environments.
 - Define the skipped-record output schema and verify that skipped access-log
    entries do not affect sent-request latency, throughput, or URI statistics.
-- Define mutually exclusive/composable rules for fixed-rate, timestamp, and
-  burst pacing, then add deterministic tests for rate, multiplier, timestamp
-  precision, and end-of-run behavior.
+- Define burst composition rules and add deterministic stage-transition and
+  end-of-run tests. Fixed-rate and timestamp pacing are already mutually
+  exclusive and covered by multiplier, precision, and duration-boundary tests.
 
 ## Benchmark policy
 
