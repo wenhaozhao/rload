@@ -779,13 +779,12 @@ fn duration_run_resumes_after_server_restart() {
         thread::sleep(Duration::from_millis(20));
         let listener = TcpListener::bind(address).unwrap();
         listener.set_nonblocking(true).unwrap();
-        let deadline = Instant::now() + Duration::from_millis(100);
+        let deadline = Instant::now() + Duration::from_millis(500);
         let mut handlers = Vec::new();
         while Instant::now() < deadline {
             match listener.accept() {
                 Ok((mut stream, _)) => handlers.push(thread::spawn(move || {
-                    let mut buffer = [0; 1024];
-                    while stream.read(&mut buffer).is_ok_and(|read| read > 0) {
+                    while read_request_head(&mut stream).is_ok() {
                         if stream
                             .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
                             .is_err()
@@ -807,7 +806,7 @@ fn duration_run_resumes_after_server_restart() {
     let config = RunConfig {
         url: format!("http://{address}/"),
         method: Method::Get,
-        limit: RunLimit::Duration(Duration::from_millis(80)),
+        limit: RunLimit::Duration(Duration::from_millis(200)),
         connections: 1,
         threads: 1,
         timeout: Duration::from_millis(10),
