@@ -60,7 +60,7 @@ result is intentionally called out rather than rounded into a pass.
 | Nginx access-log replay | No native mode | Yes; common/combined logs, `GET`/`HEAD`, sequential/shuffle/random order; unsupported methods are skipped and reported |
 | JSONL request replay | No native mode | Yes; methods, headers, UTF-8 bodies, and per-record limits |
 | Replay seed and method/URI whitelists | No native mode | Yes; deterministic seed plus intersection filters |
-| Replay frequency/timestamp pacing/burst profiles | Custom scripting only | Fixed global rate and timestamp-speed pacing implemented; burst profiles remain planned |
+| Replay frequency/timestamp pacing/burst profiles | Custom scripting only | Fixed global rate, timestamp-speed pacing, and timed rate stages implemented |
 | Automatic target inference from access-log entries | No native mode | Future candidate only; target URL is currently explicit |
 | GUI configuration interface | No native mode | Future optional feature layered on the rload engine |
 
@@ -164,6 +164,13 @@ is mutually exclusive with `--replay-rate`; missing or decreasing timestamps
 are rejected. When the log cycles, the next round begins immediately because
 an interval from the final record back to the first is not present in the log.
 
+`--replay-stages <DURATION:RPS,...>` defines a timed rate profile, for example
+`--replay-stages 10s:100,5s:1000,10s:100` for a baseline, spike, and recovery.
+Stage transitions occur on the configured boundaries; after the profile ends,
+the final rate remains active. Stages work with sequential, shuffle, or random
+selection and with either replay input format. They are mutually exclusive with
+`--replay-rate` and `--replay-timestamps`.
+
 URI Top-20 counts use a bounded Space-Saving estimate. For each entry, the true
 request count is between `estimated_requests - maximum_error` and
 `estimated_requests`; the reported error is therefore a one-sided maximum
@@ -202,8 +209,6 @@ than 256 bytes, which bounds wildcard matching work for large logs.
 The following capabilities are recorded for later evaluation and are not part
 of the current implementation or acceptance scope:
 
-- per-stage or burst rate profiles, such as a baseline rate followed by a timed
-  spike and recovery;
 - target inference for custom Nginx log formats that explicitly record scheme,
   host, and port; this remains a future candidate and is not scheduled for
   0.2.0.

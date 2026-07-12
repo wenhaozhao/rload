@@ -2,8 +2,8 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::pacer::{Pacer, TimestampPacer};
-use crate::{Method, ReplayOrder};
+use crate::pacer::{Pacer, StagePacer, TimestampPacer};
+use crate::{Method, ReplayOrder, ReplayStage};
 
 pub(crate) struct EncodedRequest {
     pub(crate) bytes: Arc<[u8]>,
@@ -18,6 +18,7 @@ pub(crate) struct RequestSequence {
     pacer: Option<Arc<Pacer>>,
     timestamp_pacer: Option<Arc<TimestampPacer>>,
     timestamp_cursor: Option<Mutex<usize>>,
+    stage_pacer: Option<Arc<StagePacer>>,
 }
 
 enum Selection {
@@ -47,6 +48,7 @@ impl RequestSequence {
             pacer: None,
             timestamp_pacer: None,
             timestamp_cursor: None,
+            stage_pacer: None,
         }
     }
 
@@ -56,6 +58,13 @@ impl RequestSequence {
             std::time::Instant::now(),
         )));
         self.timestamp_cursor = Some(Mutex::new(0));
+        self
+    }
+
+    pub(crate) fn with_stages(mut self, stages: &[ReplayStage]) -> Self {
+        if !stages.is_empty() {
+            self.stage_pacer = Some(Arc::new(StagePacer::new(stages)));
+        }
         self
     }
 
@@ -111,7 +120,8 @@ impl RequestSequence {
                         now,
                     )
                 })
-            });
+            })
+            .or_else(|| self.stage_pacer.as_ref().map(|pacer| pacer.reserve(now)));
         let method = Method::ALL[(request.method_uri_start >> 29) as usize];
         (
             method,

@@ -1,6 +1,8 @@
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use crate::ReplayStage;
+
 pub struct Pacer {
     interval: Duration,
     next: Mutex<Instant>,
@@ -9,6 +11,16 @@ pub struct Pacer {
 pub struct TimestampPacer {
     speed: f64,
     state: Mutex<TimestampState>,
+}
+
+pub struct StagePacer {
+    stages: Vec<(Duration, u64)>,
+    state: Mutex<StageState>,
+}
+
+struct StageState {
+    started: Option<Instant>,
+    next: Option<Instant>,
 }
 
 struct TimestampState {
@@ -63,6 +75,47 @@ impl TimestampPacer {
     }
 }
 
+impl StagePacer {
+    pub fn new(stages: &[ReplayStage]) -> Self {
+        let mut boundary = Duration::ZERO;
+        let stages = stages
+            .iter()
+            .map(|stage| {
+                boundary += stage.duration;
+                (boundary, stage.rate)
+            })
+            .collect();
+        Self {
+            stages,
+            state: Mutex::new(StageState {
+                started: None,
+                next: None,
+            }),
+        }
+    }
+
+    pub fn reserve(&self, now: Instant) -> Instant {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let started = *state.started.get_or_insert(now);
+        let scheduled = state.next.unwrap_or(now).max(now);
+        let elapsed = scheduled.saturating_duration_since(started);
+        let (rate, boundary) = self
+            .stages
+            .iter()
+            .find(|(boundary, _)| elapsed < *boundary)
+            .map_or_else(
+                || (self.stages.last().expect("stages are validated").1, None),
+                |(boundary, rate)| (*rate, Some(started + *boundary)),
+            );
+        let candidate = scheduled + Duration::from_secs_f64(1.0 / rate as f64);
+        state.next = Some(boundary.map_or(candidate, |boundary| candidate.min(boundary)));
+        scheduled
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -110,5 +163,27 @@ mod tests {
             pacer.reserve(1_000_000, started),
             started + Duration::from_millis(500)
         );
+    }
+
+    #[test]
+    fn stage_pacer_switches_rates_at_stage_boundaries() {
+        let started = Instant::now();
+        let pacer = StagePacer::new(&[
+            ReplayStage {
+                duration: Duration::from_secs(1),
+                rate: 2,
+            },
+            ReplayStage {
+                duration: Duration::from_secs(1),
+                rate: 4,
+            },
+        ]);
+
+        let slots: Vec<_> = (0..7).map(|_| pacer.reserve(started)).collect();
+        assert_eq!(slots[0], started);
+        assert_eq!(slots[1], started + Duration::from_millis(500));
+        assert_eq!(slots[2], started + Duration::from_secs(1));
+        assert_eq!(slots[3], started + Duration::from_millis(1_250));
+        assert_eq!(slots[6], started + Duration::from_secs(2));
     }
 }

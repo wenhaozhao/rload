@@ -48,7 +48,7 @@ pub fn run_access_log_with_filter(
     options: ReplayOptions,
     filter: ReplayFilter,
 ) -> Result<RunSummary, RunError> {
-    validate_replay_options(options)?;
+    validate_replay_options(&options)?;
     let replay = access_log::read(path.as_ref())?;
     let skipped_methods = replay.skipped_methods;
     let (replay, filtered) = replay_filter::apply(replay.requests, &filter)?;
@@ -77,7 +77,7 @@ pub fn run_request_file_with_filter(
     options: ReplayOptions,
     filter: ReplayFilter,
 ) -> Result<RunSummary, RunError> {
-    validate_replay_options(options)?;
+    validate_replay_options(&options)?;
     if options.timestamps {
         return Err(RunError::InvalidConfig(
             "timestamp pacing requires an access log".into(),
@@ -103,7 +103,7 @@ pub fn run_with_request(
     )
 }
 
-fn validate_replay_options(options: ReplayOptions) -> Result<(), RunError> {
+fn validate_replay_options(options: &ReplayOptions) -> Result<(), RunError> {
     if options.order == ReplayOrder::Sequential && options.seed.is_some() {
         return Err(RunError::InvalidConfig(
             "replay seed requires shuffle or random order".into(),
@@ -117,6 +117,32 @@ fn validate_replay_options(options: ReplayOptions) -> Result<(), RunError> {
     if options.timestamps && options.rate.is_some() {
         return Err(RunError::InvalidConfig(
             "timestamp pacing cannot be combined with a fixed replay rate".into(),
+        ));
+    }
+    if !options.stages.is_empty() && (options.rate.is_some() || options.timestamps) {
+        return Err(RunError::InvalidConfig(
+            "replay stages cannot be combined with fixed-rate or timestamp pacing".into(),
+        ));
+    }
+    if options
+        .stages
+        .iter()
+        .any(|stage| stage.duration.is_zero() || stage.rate == 0)
+    {
+        return Err(RunError::InvalidConfig(
+            "replay stages require positive durations and rates".into(),
+        ));
+    }
+    if options
+        .stages
+        .iter()
+        .try_fold(Duration::ZERO, |total, stage| {
+            total.checked_add(stage.duration)
+        })
+        .is_none()
+    {
+        return Err(RunError::InvalidConfig(
+            "cumulative replay stage duration is too large".into(),
         ));
     }
     if !options.speed.is_finite() || options.speed <= 0.0 {
@@ -158,7 +184,8 @@ fn run_with_roots(
                     options.order,
                     options.seed.unwrap_or_else(replay_seed),
                 )
-                .with_rate(options.rate);
+                .with_rate(options.rate)
+                .with_stages(&options.stages);
                 if options.timestamps {
                     sequence.with_timestamps(options.speed)
                 } else {

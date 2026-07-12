@@ -28,11 +28,10 @@
 6. Tolerant access-log replay is implemented on the 0.2.0 development branch:
    unsupported methods are skipped, counted by method and total, and printed in
    the final summary. Machine-readable result output remains to be designed.
-7. For 0.2.0, add burst/stage traffic models that control send rate over time
-   (for example, a baseline rate followed by a timed spike and recovery). Keep
-   this independent from request selection order: sequential, shuffle, and
-   random determine which request is selected, while burst profiles determine
-   when requests are sent.
+7. Burst/stage traffic models are implemented on the 0.2.0 development branch.
+   Timed rate stages support baseline, spike, and recovery profiles, hold the
+   final rate after the profile ends, and remain independent from sequential,
+   shuffle, or random request selection.
 
 ## Future candidate features
 
@@ -55,9 +54,9 @@
   unconditional parity across environments.
 - Define the skipped-record output schema and verify that skipped access-log
    entries do not affect sent-request latency, throughput, or URI statistics.
-- Define burst composition rules and add deterministic stage-transition and
-  end-of-run tests. Fixed-rate and timestamp pacing are already mutually
-  exclusive and covered by multiplier, precision, and duration-boundary tests.
+- Add machine-readable output for pacing configuration and stage transitions.
+  Fixed-rate, timestamp, and stage pacing are mutually exclusive and covered by
+  multiplier, precision, transition, and duration-boundary tests.
 
 ## Benchmark policy
 

@@ -446,6 +446,86 @@ fn cli_rejects_invalid_timestamp_replay_combinations() {
 }
 
 #[test]
+fn cli_applies_replay_rate_stages() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut arrivals = Vec::new();
+        for _ in 0..5 {
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                let mut byte = [0];
+                stream.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            arrivals.push(Instant::now());
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        }
+        arrivals
+    });
+    let path = env::temp_dir().join(format!("rload-stages-{}.log", std::process::id()));
+    fs::write(&path, "127.0.0.1 - - [date] \"GET / HTTP/1.1\" 200 0\n").unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--requests",
+            "5",
+            "--connections",
+            "1",
+            "--access-log",
+            path.to_str().unwrap(),
+            "--replay-stages",
+            "200ms:5,200ms:20",
+            &format!("http://{address}/"),
+        ])
+        .output()
+        .unwrap();
+    fs::remove_file(path).unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let arrivals = server.join().unwrap();
+    let baseline_gap = arrivals[1].duration_since(arrivals[0]);
+    let burst_gap = arrivals[2].duration_since(arrivals[1]);
+    assert!(
+        baseline_gap >= Duration::from_millis(150),
+        "baseline gap: {baseline_gap:?}"
+    );
+    assert!(
+        burst_gap < Duration::from_millis(150),
+        "burst gap: {burst_gap:?}"
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("Replay stages:"));
+}
+
+#[test]
+fn cli_rejects_invalid_replay_stages() {
+    for arguments in [
+        vec!["--replay-stages", "1s:0"],
+        vec!["--replay-stages", "invalid"],
+        vec!["--replay-stages", "1s:10", "--replay-rate", "10"],
+        vec!["--replay-stages", "1s:10", "--replay-timestamps"],
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+            .args(arguments)
+            .args([
+                "--access-log",
+                "/does/not/matter.log",
+                "http://127.0.0.1:1/",
+            ])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+    }
+}
+
+#[test]
 fn cli_replays_jsonl_post_with_headers_and_body() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
