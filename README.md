@@ -32,10 +32,10 @@ cargo install --path r-wrk
 rload --help
 ```
 
-When already inside the crate directory, omit the manifest/path prefixes. The repository's
-modified Apache license text remains authoritative. Before distributing a
-binary or publishing a package, manually confirm that the chosen product and
-package names comply with its derivative-work naming clause.
+When already inside the crate directory, omit the manifest/path prefixes.
+Rload is licensed under `MIT OR Apache-2.0`; see `LICENSE-MIT` and
+`LICENSE-APACHE`. Third-party attribution notices are documented separately
+where required by dependencies.
 
 ## Usage
 
