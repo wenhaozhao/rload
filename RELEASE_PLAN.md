@@ -2,13 +2,11 @@
 
 ## Current status
 
-- `rload` 0.1.0 and 0.1.1 are published to crates.io; the latest published
-  version is 0.1.1.
-- The 0.1.1 package includes the standard license files and third-party notice.
+- `rload` 0.1.2 is published to crates.io.
+- The 0.1.2 package includes the standard license files and third-party notice.
 - The package metadata points to the public repository, homepage, and docs.rs.
 - `./scripts/release-check.sh` is the required local gate.
-- The current release baseline is macOS arm64; Linux and other targets remain
-  candidates until their CI gates run.
+- The 0.2.0 development branch adds CI gates for macOS, Linux, and Windows.
 
 ## Post-0.1.1 priorities
 
@@ -26,9 +24,9 @@
    This remains independent from fixed-rate and burst modes.
 5. Keep Lua/LuaJIT out of the first release line unless a separate compatibility
    design and licensing review is approved.
-6. For 0.2.0, add tolerant access-log replay: skip unsupported methods instead of
-   aborting the input, track skipped records by method and total, and include
-   those counts in the final load summary and machine-readable result contract.
+6. Tolerant access-log replay is implemented on the 0.2.0 development branch:
+   unsupported methods are skipped, counted by method and total, and printed in
+   the final summary. Machine-readable result output remains to be designed.
 7. For 0.2.0, add burst/stage traffic models that control send rate over time
    (for example, a baseline rate followed by a timed spike and recovery). Keep
    this independent from request selection order: sequential, shuffle, and

@@ -50,11 +50,12 @@ pub fn run_access_log_with_filter(
 ) -> Result<RunSummary, RunError> {
     validate_replay_options(options)?;
     let replay = access_log::read(path.as_ref())?;
-    let (replay, filtered) = replay_filter::apply(replay, &filter)?;
+    let skipped_methods = replay.skipped_methods;
+    let (replay, filtered) = replay_filter::apply(replay.requests, &filter)?;
     run_with_roots(
         config,
         RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned()),
-        RequestInput::Replay(replay, options, filtered),
+        RequestInput::Replay(replay, options, filtered, skipped_methods),
     )
 }
 
@@ -82,7 +83,7 @@ pub fn run_request_file_with_filter(
     run_with_roots(
         config,
         RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned()),
-        RequestInput::Replay(replay, options, filtered),
+        RequestInput::Replay(replay, options, filtered, Default::default()),
     )
 }
 
@@ -113,8 +114,8 @@ fn run_with_roots(
 ) -> Result<RunSummary, RunError> {
     let target = Target::parse(&config.url)?;
     config.validate()?;
-    let (requests, filtered_replay_entries) = match input {
-        RequestInput::Replay(replay, options, filtered) => (
+    let (requests, filtered_replay_entries, skipped_access_log_methods) = match input {
+        RequestInput::Replay(replay, options, filtered, skipped_methods) => (
             RequestSequence::new(
                 replay
                     .into_iter()
@@ -133,6 +134,7 @@ fn run_with_roots(
                 options.seed.unwrap_or_else(replay_seed),
             ),
             filtered,
+            skipped_methods,
         ),
         RequestInput::Single(options) => {
             let request = ReplayRequest {
@@ -158,6 +160,7 @@ fn run_with_roots(
                     0,
                 ),
                 0,
+                Default::default(),
             )
         }
         RequestInput::Default => (
@@ -174,6 +177,7 @@ fn run_with_roots(
                 0,
             ),
             0,
+            Default::default(),
         ),
     };
     let requests = Arc::new(requests);
@@ -213,6 +217,7 @@ fn run_with_roots(
     })?;
     let finished = Instant::now();
     summary.filtered_replay_entries = filtered_replay_entries;
+    summary.skipped_access_log_methods = skipped_access_log_methods;
     summary.runtime = finished.duration_since(started);
     match config.limit {
         RunLimit::Duration(duration) => {
@@ -237,7 +242,12 @@ fn run_with_roots(
 enum RequestInput {
     Default,
     Single(RequestOptions),
-    Replay(Vec<ReplayRequest>, ReplayOptions, u64),
+    Replay(
+        Vec<ReplayRequest>,
+        ReplayOptions,
+        u64,
+        std::collections::BTreeMap<String, u64>,
+    ),
 }
 
 fn replay_seed() -> u64 {

@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -13,25 +14,44 @@ pub(crate) struct ReplayRequest {
     pub(crate) body_present: bool,
 }
 
-pub(crate) fn read(path: &Path) -> Result<Vec<ReplayRequest>, RunError> {
+pub(crate) struct AccessLogReplay {
+    pub(crate) requests: Vec<ReplayRequest>,
+    pub(crate) skipped_methods: BTreeMap<String, u64>,
+}
+
+pub(crate) fn read(path: &Path) -> Result<AccessLogReplay, RunError> {
     let file = File::open(path)?;
     let mut requests = Vec::new();
+    let mut skipped_methods = BTreeMap::new();
     for (index, line) in BufReader::new(file).lines().enumerate() {
         let line = line?;
         if line.trim().is_empty() {
             continue;
         }
-        requests.push(parse_line(&line, index + 1)?);
+        match parse_line(&line, index + 1)? {
+            ParsedLine::Request(request) => requests.push(request),
+            ParsedLine::SkippedMethod(method) => {
+                *skipped_methods.entry(method).or_default() += 1;
+            }
+        }
     }
     if requests.is_empty() {
         return Err(RunError::InvalidAccessLog(
-            "access log contains no requests".into(),
+            "access log contains no replayable requests".into(),
         ));
     }
-    Ok(requests)
+    Ok(AccessLogReplay {
+        requests,
+        skipped_methods,
+    })
 }
 
-fn parse_line(line: &str, line_number: usize) -> Result<ReplayRequest, RunError> {
+enum ParsedLine {
+    Request(ReplayRequest),
+    SkippedMethod(String),
+}
+
+fn parse_line(line: &str, line_number: usize) -> Result<ParsedLine, RunError> {
     let invalid =
         |message: &str| RunError::InvalidAccessLog(format!("line {line_number}: {message}"));
     let request = line
@@ -42,11 +62,7 @@ fn parse_line(line: &str, line_number: usize) -> Result<ReplayRequest, RunError>
     let method = match fields.next() {
         Some("GET") => Method::Get,
         Some("HEAD") => Method::Head,
-        Some(method) => {
-            return Err(invalid(&format!(
-                "method {method} requires a request body or is unsupported"
-            )));
-        }
+        Some(method) => return Ok(ParsedLine::SkippedMethod(method.to_owned())),
         None => return Err(invalid("request field is empty")),
     };
     let path = fields
@@ -60,13 +76,13 @@ fn parse_line(line: &str, line_number: usize) -> Result<ReplayRequest, RunError>
     if fields.next().is_some() {
         return Err(invalid("request field has unexpected fields"));
     }
-    Ok(ReplayRequest {
+    Ok(ParsedLine::Request(ReplayRequest {
         method,
         path: path.to_owned(),
         headers: Vec::new(),
         body: Vec::new(),
         body_present: false,
-    })
+    }))
 }
 
 #[cfg(test)]
@@ -74,11 +90,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn reports_line_number_for_unsupported_method() {
-        let error =
-            parse_line("127.0.0.1 - - [date] \"POST /items HTTP/1.1\" 200 0", 7).unwrap_err();
+    fn skips_unsupported_methods() {
+        let parsed = parse_line("127.0.0.1 - - [date] \"POST /items HTTP/1.1\" 200 0", 7).unwrap();
 
-        assert!(error.to_string().contains("line 7"));
-        assert!(error.to_string().contains("method POST"));
+        assert!(matches!(parsed, ParsedLine::SkippedMethod(method) if method == "POST"));
     }
 }

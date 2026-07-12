@@ -48,7 +48,7 @@ result is intentionally called out rather than rounded into a pass.
 
 ### Functional coverage
 
-| Capability | wrk 4.2.0 | rload 0.1.1 |
+| Capability | wrk 4.2.0 | rload 0.2.0 development |
 |---|---|---|
 | HTTP/1.1 static request load | Yes | Yes |
 | HTTP and HTTPS with connection reuse | Yes | Yes, including TLS verification and SNI |
@@ -57,7 +57,7 @@ result is intentionally called out rather than rounded into a pass.
 | HTTP status and socket-error statistics | Yes | Yes, with connect/read/write/timeout categories |
 | Curl-style method, headers, and request body | Via Lua scripting | Yes for the documented curl-compatible subset |
 | Lua/LuaJIT request scripting | Yes | Intentionally not supported in the first release line |
-| Nginx access-log replay | No native mode | Yes; common/combined logs, `GET`/`HEAD`, sequential/shuffle/random order; unsupported-method skipping planned for 0.2.0 |
+| Nginx access-log replay | No native mode | Yes; common/combined logs, `GET`/`HEAD`, sequential/shuffle/random order; unsupported methods are skipped and reported |
 | JSONL request replay | No native mode | Yes; methods, headers, UTF-8 bodies, and per-record limits |
 | Replay seed and method/URI whitelists | No native mode | Yes; deterministic seed plus intersection filters |
 | Replay frequency/timestamp pacing/burst profiles | Custom scripting only | Planned 0.2.0 features, not implemented yet |
@@ -139,12 +139,12 @@ resume sending requests without restarting the load-test process.
 
 Access-log replay reads the quoted Nginx `$request` field, preserves its
 origin-form URI (including the query string), and cycles through the log in
-order until the request-count or duration limit is reached. Empty logs,
-malformed request lines, and methods other than `GET` or `HEAD` fail with the
-source line number in 0.1.1. In 0.2.0, unsupported methods will be skipped and
-reported by total and method-specific counters in the final summary; they will
-not be sent or included in request latency/throughput statistics. Request bodies
-and original timestamp pacing are not yet supported.
+order until the request-count or duration limit is reached. Empty logs and
+malformed request lines fail with the source line number. Methods other than
+`GET` or `HEAD` are skipped and reported by total and method-specific counters
+in the final summary; they are not sent or included in request
+latency/throughput statistics. Request bodies and original timestamp pacing are
+not yet supported.
 
 Replay order is `sequential` by default. `shuffle` visits every entry exactly
 once per round and reshuffles before the next round; `random` independently

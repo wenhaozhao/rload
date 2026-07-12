@@ -139,11 +139,27 @@ fn cli_replays_access_log_requests_in_order() {
 }
 
 #[test]
-fn cli_reports_invalid_access_log_line() {
+fn cli_skips_unsupported_access_log_methods_and_reports_them() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = Vec::new();
+        while !request.ends_with(b"\r\n\r\n") {
+            let mut byte = [0];
+            stream.read_exact(&mut byte).unwrap();
+            request.push(byte[0]);
+        }
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+            .unwrap();
+        request
+    });
     let path = env::temp_dir().join(format!("r-wrk-invalid-access-{}.log", std::process::id()));
     fs::write(
         &path,
-        "127.0.0.1 - - [date] \"POST /items HTTP/1.1\" 200 0\n",
+        "127.0.0.1 - - [date] \"POST /items HTTP/1.1\" 200 0\n\
+         127.0.0.1 - - [date] \"GET /health HTTP/1.1\" 200 0\n",
     )
     .unwrap();
 
@@ -151,16 +167,27 @@ fn cli_reports_invalid_access_log_line() {
         .args([
             "--access-log",
             path.to_str().unwrap(),
-            "http://127.0.0.1:1/",
+            "--requests",
+            "1",
+            &format!("http://{address}/"),
         ])
         .output()
         .unwrap();
     fs::remove_file(path).unwrap();
 
-    assert!(!output.status.success());
-    let stderr = String::from_utf8(output.stderr).unwrap();
-    assert!(stderr.contains("invalid access log: line 1"));
-    assert!(stderr.contains("method POST"));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8(server.join().unwrap())
+            .unwrap()
+            .starts_with("GET /health HTTP/1.1\r\n")
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("Access-log entries skipped: 1"));
+    assert!(stdout.contains("POST         1 unsupported method"));
 }
 
 #[test]

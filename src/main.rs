@@ -332,6 +332,13 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
             summary.filtered_replay_entries
         );
     }
+    let skipped_access_log_entries: u64 = summary.skipped_access_log_methods.values().sum();
+    if skipped_access_log_entries > 0 {
+        println!("Access-log entries skipped: {skipped_access_log_entries}");
+        for (method, count) in &summary.skipped_access_log_methods {
+            println!("  {method:<5} {count:>8} unsupported method");
+        }
+    }
     println!("Method Statistics");
     for method in Method::ALL {
         let name = method.as_str();
