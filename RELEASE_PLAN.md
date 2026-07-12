@@ -58,6 +58,16 @@
   burst pacing, then add deterministic tests for rate, multiplier, timestamp
   precision, and end-of-run behavior.
 
+## Benchmark policy
+
+Every benchmark sign-off must cover three dimensions: functional completeness
+regression, performance regression, and statistical accuracy. Each dimension
+must compare the same three implementations under equivalent parameters:
+`wrk`, the latest published rload release, and the current development build.
+Use at least five alternating paired runs for statistical accuracy decisions;
+record throughput, latency percentiles, errors, and peak RSS, and retain the
+raw result directories with the report.
+
 ## Release checklist
 
 - [x] Confirm crates.io metadata and README links resolve.
