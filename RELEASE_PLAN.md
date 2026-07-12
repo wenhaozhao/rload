@@ -14,19 +14,27 @@
 
 1. Add CI on macOS and Linux for formatting, Clippy, tests, package verification,
    and a smoke HTTP run.
-2. Re-run the wrk accuracy matrix on a dedicated or separate-server host and
-   resolve the zero-delay P99 sensitivity before claiming unconditional parity.
-3. Publish a signed changelog and migration notes from the old internal
+2. Publish a signed changelog and migration notes from the old internal
    `r-wrk` name to `rload`.
-4. Decide whether replay rate control, timestamp pacing, burst profiles, and
+3. Decide whether replay rate control, timestamp pacing, burst profiles, and
    target inference belong in 0.2.0; they remain optional and unimplemented.
-5. Keep Lua/LuaJIT out of the first release line unless a separate compatibility
+4. Keep Lua/LuaJIT out of the first release line unless a separate compatibility
    design and licensing review is approved.
+
+## Deferred follow-up work
+
+- Re-run the wrk accuracy matrix on a dedicated or separate-server host. This is
+  intentionally deferred and is not a blocker for the current 0.1.1 release
+  preparation.
+- Investigate and resolve the zero-delay P99 sensitivity before claiming
+  unconditional parity across environments.
 
 ## Release checklist
 
 - [ ] Confirm crates.io metadata and README links resolve.
 - [ ] Run `./scripts/release-check.sh` on the release commit.
-- [ ] Run the wrk accuracy and access-log replay matrices and archive results.
+- [x] Run the local wrk accuracy and access-log replay matrices and archive
+      results.
+- [ ] Run the deferred independent-server accuracy matrix (post-release task).
 - [ ] Review `LICENSE-MIT`, `LICENSE-APACHE`, and `THIRD_PARTY_NOTICES.md`.
 - [ ] Tag the release and publish the changelog.
