@@ -1,0 +1,109 @@
+name: Release rload
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (for example v0.1.2)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Validate version and tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag_version="${RELEASE_TAG#v}"
+          crate_version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -1)"
+          test "$tag_version" = "$crate_version" || {
+            echo "tag $tag_version does not match Cargo.toml $crate_version" >&2
+            exit 1
+          }
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify release
+        run: ./scripts/release-check.sh
+
+      - name: Publish crate
+        run: cargo publish --locked --token "${{ secrets.CARGO_REGISTRY_TOKEN }}"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$RELEASE_TAG" --verify-tag --generate-notes --title "$RELEASE_TAG"
+
+      - name: Update Homebrew tap
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAP_REPOSITORY: wenhaozhao/homebrew-rload
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          archive="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${RELEASE_TAG}.tar.gz"
+          sha256="$(curl -fsSL "$archive" | sha256sum | cut -d' ' -f1)"
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/${TAP_REPOSITORY}.git" /tmp/homebrew-rload
+          cd /tmp/homebrew-rload
+          python3 - "$version" "$archive" "$sha256" <<'PY'
+          from pathlib import Path
+          import sys
+          version, archive, sha256 = sys.argv[1:]
+          path = Path("Formula/rload.rb")
+          text = path.read_text()
+          import re
+          text = re.sub(r'archive/refs/tags/[^"/]+\.tar\.gz', f'archive/refs/tags/v{version}.tar.gz', text)
+          text = re.sub(r'  sha256 "[0-9a-f]+"', f'  sha256 "{sha256}"', text)
+          path.write_text(text)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Formula/rload.rb
+          git commit -m "Update rload to ${version}" || exit 0
+          git push origin main
+
+      - name: Update website version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          git fetch origin main
+          git worktree add /tmp/rload-main origin/main
+          cd /tmp/rload-main
+          python3 - "$version" <<'PY'
+          from pathlib import Path
+          import re, sys
+          version = sys.argv[1]
+          path = Path("website/index.html")
+          text = path.read_text()
+          text = re.sub(r'\b\d+\.\d+\.\d+ 最新版本', f'{version} 最新版本', text)
+          text = re.sub(r'rload \d+\.\d+\.\d+', f'rload {version}', text)
+          path.write_text(text)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add website/index.html
+          git commit -m "Update website for rload ${version}" || exit 0
+          git push origin HEAD:main

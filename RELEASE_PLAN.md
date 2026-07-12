@@ -69,3 +69,19 @@
 - [ ] Run the deferred independent-server accuracy matrix (post-release task).
 - [x] Review `LICENSE-MIT`, `LICENSE-APACHE`, and `THIRD_PARTY_NOTICES.md`.
 - [ ] Tag the release and publish the changelog.
+
+## Automated release workflow
+
+Push a tag in the form `vMAJOR.MINOR.PATCH` (for example `v0.1.2`) to run
+`.github/workflows/release.yml`. The workflow validates that the tag matches
+`Cargo.toml`, runs the release gate, publishes the crate, creates a GitHub
+Release, updates `wenhaozhao/homebrew-rload`, and commits the new version to
+the GitHub Pages homepage.
+
+Required Actions secrets:
+
+- `CARGO_REGISTRY_TOKEN`: crates.io API token with publish permission.
+- `HOMEBREW_TAP_TOKEN`: fine-grained token with Contents read/write access to
+  `wenhaozhao/homebrew-rload`.
+
+The workflow can also be started manually with a release tag input.
