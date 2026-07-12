@@ -74,17 +74,15 @@ CLI or duplicate load-generation logic.
 
 ## Build and install
 
-The current release baseline is validated with stable Rust 1.96.1 on macOS
-arm64. The runtime uses portable Rust crates, but Linux and Windows remain
-release candidates until the same test and package gates run in 0.2.0 CI on
-those platforms. Windows CI will additionally cover PowerShell invocation,
-path handling, and socket recovery.
+The 0.2.0 release candidate is validated with stable Rust 1.96.1 on macOS
+arm64, Linux, and Windows. Windows CI additionally covers PowerShell
+invocation, path handling, and socket recovery.
 
 Build or install directly from this checkout:
 
 ```sh
-cargo build --release --manifest-path r-wrk/Cargo.toml
-cargo install --path r-wrk
+cargo build --release
+cargo install --path .
 rload --help
 ```
 
@@ -221,7 +219,7 @@ excludes the entire input is an error. Whitelist options are not valid for an
 ordinary single request. At most 32 URI patterns may be supplied, each no longer
 than 256 bytes, which bounds wildcard matching work for large logs.
 
-### Optional replay features
+### Future candidate features
 
 The following capabilities are recorded for later evaluation and are not part
 of the current implementation or acceptance scope:
@@ -229,15 +227,6 @@ of the current implementation or acceptance scope:
 - target inference for custom Nginx log formats that explicitly record scheme,
   host, and port; this remains a future candidate and is not scheduled for
   0.2.0.
-
-Burst profiles control when requests are sent and are independent of replay
-selection order. `sequential`, `shuffle`, and `random` choose which request is
-selected; a burst/stage profile controls the rate at which selected requests
-are issued.
-
-Until one of these optional modes is implemented, access-log replay remains a
-maximum-throughput workload: each connection sends its next request as soon as
-the previous response completes.
 
 Measure replay overhead against the static-request path with:
 

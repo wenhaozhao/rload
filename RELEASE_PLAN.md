@@ -2,8 +2,9 @@
 
 ## Current status
 
-- `rload` 0.1.2 is published to crates.io.
-- The 0.1.2 package includes the standard license files and third-party notice.
+- `rload` 0.1.2 is published to crates.io; 0.2.0 release preparation is in
+  progress on this branch.
+- The package includes the standard license files and third-party notice.
 - The package metadata points to the public repository, homepage, and docs.rs.
 - `./scripts/release-check.sh` is the required local gate.
 - The 0.2.0 development branch adds CI gates for macOS, Linux, and Windows.
@@ -79,11 +80,12 @@ raw result directories with the report.
       results.
 - [ ] Run the deferred independent-server accuracy matrix (post-release task).
 - [x] Review `LICENSE-MIT`, `LICENSE-APACHE`, and `THIRD_PARTY_NOTICES.md`.
+- [x] Update the version to 0.2.0 and run the final package gate.
 - [ ] Tag the release and publish the changelog.
 
 ## Automated release workflow
 
-Push a tag in the form `vMAJOR.MINOR.PATCH` (for example `v0.1.2`) to run
+Push a tag in the form `vMAJOR.MINOR.PATCH` (for example `v0.2.0`) to run
 `.github/workflows/release.yml`. The workflow validates that the tag matches
 `Cargo.toml`, runs the release gate, publishes the crate, creates a GitHub
 Release, updates `wenhaozhao/homebrew-rload`, and commits the new version to
