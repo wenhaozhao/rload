@@ -4,11 +4,14 @@ version = "0.1.0"
 edition = "2024"
 default-run = "rload"
 description = "A Rust HTTP/1.1 load generator with Nginx access-log and JSONL replay"
+authors = ["zhaowenhao@mhlife.vip"]
 readme = "README.md"
-license-file = "../LICENSE"
+license = "MIT OR Apache-2.0"
 keywords = ["benchmark", "http", "load-testing", "nginx"]
 categories = ["command-line-utilities", "development-tools::profiling"]
-repository = ""
+repository = "https://github.com/wenhaozhao/rload"
+homepage = "https://github.com/wenhaozhao/rload"
+documentation = "https://docs.rs/rload"
 
 [[bin]]
 name = "rload"
