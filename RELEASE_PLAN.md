@@ -34,6 +34,13 @@
    random determine which request is selected, while burst profiles determine
    when requests are sent.
 
+## Future candidate features
+
+- Automatic target inference from access-log fields that explicitly provide
+  scheme, host, and port. This is intentionally not scheduled for 0.2.0;
+  standard origin-form logs do not contain enough information to infer a target
+  safely.
+
 ## Deferred follow-up work
 
 - Re-run the wrk accuracy matrix on a dedicated or separate-server host. This is
@@ -41,7 +48,7 @@
   preparation.
 - Investigate and resolve the zero-delay P99 sensitivity before claiming
   unconditional parity across environments.
- - Define the skipped-record output schema and verify that skipped access-log
+- Define the skipped-record output schema and verify that skipped access-log
    entries do not affect sent-request latency, throughput, or URI statistics.
 - Define mutually exclusive/composable rules for fixed-rate, timestamp, and
   burst pacing, then add deterministic tests for rate, multiplier, timestamp

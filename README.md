@@ -59,7 +59,7 @@ result is intentionally called out rather than rounded into a pass.
 | JSONL request replay | No native mode | Yes; methods, headers, UTF-8 bodies, and per-record limits |
 | Replay seed and method/URI whitelists | No native mode | Yes; deterministic seed plus intersection filters |
 | Replay frequency/timestamp pacing/burst profiles | Custom scripting only | Planned 0.2.0 features, not implemented yet |
-| Automatic target inference from access-log entries | No native mode | Planned optional feature; target URL is currently explicit |
+| Automatic target inference from access-log entries | No native mode | Future candidate only; target URL is currently explicit |
 
 The result is intentionally a wrk-compatible load generator rather than a
 drop-in replacement for every wrk extension: core command-line behavior and
@@ -189,8 +189,9 @@ of the current implementation or acceptance scope:
   explicit handling for second-only versus sub-second timestamps;
 - per-stage or burst rate profiles, such as a baseline rate followed by a timed
   spike and recovery;
-- optional `--target` syntax and target inference for custom Nginx log formats
-  that explicitly record scheme, host, and port.
+- target inference for custom Nginx log formats that explicitly record scheme,
+  host, and port; this remains a future candidate and is not scheduled for
+  0.2.0.
 
 Burst profiles control when requests are sent and are independent of replay
 selection order. `sequential`, `shuffle`, and `random` choose which request is
