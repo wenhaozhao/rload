@@ -17,6 +17,56 @@ The current vertical slice provides:
 
 Lua and LuaJIT compatibility are explicitly out of scope.
 
+## Comparison with wrk
+
+The comparison baseline is wrk 4.2.0. Performance figures below come from
+paired runs using the same URL, server, thread count, connection count, and
+duration on macOS arm64. They are regression evidence for this environment,
+not a guarantee that either client will reach the same throughput on every
+machine.
+
+### Performance and accuracy
+
+| Dimension | wrk baseline | rload result | Assessment |
+|---|---|---|---|
+| Throughput | Reference client | RPS MAE 0.986% across 15 paired runs at 10/100/400 connections | Equivalent within the 3% gate |
+| Average latency | Reference client | MAE 1.171% | Equivalent within the 3% gate |
+| P50 / P75 latency | Reference percentiles | MAE 1.064% / 0.961% | Equivalent within the 3% gate |
+| P90 latency | Reference percentile | MAE 0.944% | Equivalent within the 5% gate |
+| P99 with 1 ms delay + deterministic jitter | Reference percentile | Median absolute error 0.567% | Passes the 5% gate |
+| Zero-delay loopback P99 | Sensitive to scheduler noise | Median absolute error 5.128% | Narrowly exceeds the 5% gate; not claimed as unconditional parity |
+| Static-path RSS | Reference process | Fresh 100-connection run: wrk ~3.47 MiB, rload ~3.55 MiB | Comparable in the measured run |
+| Access-log replay throughput | No native access-log replay | 100k: +1.68%; 500k: -1.81% versus paired static runs | Replay overhead remained within the configured 10% gate |
+| Access-log replay memory | No native access-log replay | RSS scaling slope 248.7 B per loaded entry | Passed the configured 0–256 B/entry gate |
+
+The formal accuracy methodology, raw result directories, and gate definitions
+are documented in [`benchmarks/VALIDATION_2026-07-11.md`](benchmarks/VALIDATION_2026-07-11.md)
+and [`benchmarks/ACCURACY.md`](benchmarks/ACCURACY.md). The zero-delay P99
+result is intentionally called out rather than rounded into a pass.
+
+### Functional coverage
+
+| Capability | wrk 4.2.0 | rload 0.1.1 |
+|---|---|---|
+| HTTP/1.1 static request load | Yes | Yes |
+| HTTP and HTTPS with connection reuse | Yes | Yes, including TLS verification and SNI |
+| Worker threads, connections, duration, request count | Yes | Yes; core CLI forms are compatible |
+| Timeout and latency reporting | Yes | Yes; `--latency` is accepted and latency is always printed |
+| HTTP status and socket-error statistics | Yes | Yes, with connect/read/write/timeout categories |
+| Curl-style method, headers, and request body | Via Lua scripting | Yes for the documented curl-compatible subset |
+| Lua/LuaJIT request scripting | Yes | Intentionally not supported in the first release line |
+| Nginx access-log replay | No native mode | Yes; common/combined logs, `GET`/`HEAD`, sequential/shuffle/random order |
+| JSONL request replay | No native mode | Yes; methods, headers, UTF-8 bodies, and per-record limits |
+| Replay seed and method/URI whitelists | No native mode | Yes; deterministic seed plus intersection filters |
+| Replay frequency/timestamp pacing/burst profiles | Custom scripting only | Planned optional features, not implemented yet |
+| Automatic target inference from access-log entries | No native mode | Planned optional feature; target URL is currently explicit |
+
+The result is intentionally a wrk-compatible load generator rather than a
+drop-in replacement for every wrk extension: core command-line behavior and
+static HTTP load are covered, while Lua compatibility is outside the first
+release scope. The additional replay modes are the main functional expansion
+provided by rload.
+
 ## Build and install
 
 The current release baseline is validated with stable Rust 1.96.1 on macOS
@@ -157,10 +207,10 @@ and 500k entries. Current gates are at most 10% throughput loss and between 0
 and 256 bytes of incremental RSS per entry.
 
 The 2026-07-11 sequential-replay acceptance matrix passed both scales. At 100k
-entries, median throughput loss was -1.68% and incremental RSS was 250.8
-B/entry. At 500k entries, the corresponding values were +1.08% and 249.6
-B/entry. The measured RSS scaling slope was 248.8 B/entry. These local results
-are regression evidence rather than a cross-platform memory guarantee.
+entries, median throughput difference was +1.68% and incremental RSS was 252.5
+B/entry. At 500k entries, the corresponding throughput difference was -1.81%
+and the measured RSS scaling slope was 248.7 B/entry. These local results are
+regression evidence rather than a cross-platform memory guarantee.
 
 Run the tests and lints with:
 
