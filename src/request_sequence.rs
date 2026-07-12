@@ -50,11 +50,18 @@ impl RequestSequence {
         self
     }
 
-    pub(crate) fn next(&self) -> (Method, Arc<[u8]>, std::ops::Range<usize>) {
-        if let Some(pacer) = &self.pacer {
-            let scheduled = pacer.reserve(std::time::Instant::now());
-            std::thread::sleep(scheduled.saturating_duration_since(std::time::Instant::now()));
-        }
+    pub(crate) fn next(
+        &self,
+    ) -> (
+        Method,
+        Arc<[u8]>,
+        std::ops::Range<usize>,
+        Option<std::time::Instant>,
+    ) {
+        let scheduled = self
+            .pacer
+            .as_ref()
+            .map(|pacer| pacer.reserve(std::time::Instant::now()));
         let index = match &self.selection {
             Selection::Sequential(next) => {
                 next.fetch_add(1, Ordering::Relaxed) % self.requests.len()
@@ -74,6 +81,7 @@ impl RequestSequence {
             method,
             Arc::clone(&request.bytes),
             (request.method_uri_start & 0x1fff_ffff) as usize..request.uri_end as usize,
+            scheduled,
         )
     }
 }
@@ -161,7 +169,7 @@ mod tests {
                 thread::spawn(move || {
                     let mut counts = [0; 3];
                     for _ in 0..300 {
-                        let (_, bytes, _) = sequence.next();
+                        let (_, bytes, _, _) = sequence.next();
                         counts[usize::from(bytes[0] - b'A')] += 1;
                     }
                     counts

@@ -310,6 +310,42 @@ fn cli_limits_replay_to_global_request_rate() {
 }
 
 #[test]
+fn replay_pacing_does_not_block_duration_shutdown() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let path = env::temp_dir().join(format!("rload-nonblocking-rate-{}.log", std::process::id()));
+    fs::write(&path, "127.0.0.1 - - [date] \"GET /rate HTTP/1.1\" 200 0\n").unwrap();
+    let started = Instant::now();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--duration",
+            "50ms",
+            "--timeout",
+            "20ms",
+            "--connections",
+            "10",
+            "--access-log",
+            path.to_str().unwrap(),
+            "--replay-rate",
+            "1",
+            &format!("http://{address}/"),
+        ])
+        .output()
+        .unwrap();
+    let elapsed = started.elapsed();
+    fs::remove_file(path).unwrap();
+    drop(listener);
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(elapsed < Duration::from_secs(1), "elapsed: {elapsed:?}");
+}
+
+#[test]
 fn cli_replays_jsonl_post_with_headers_and_body() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();

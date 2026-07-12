@@ -493,14 +493,24 @@ fn run_worker(
 
     let mut active = connections.len();
     let mut deadlines = BinaryHeap::new();
+    let mut pacing = BinaryHeap::new();
     for (token, connection) in connections.iter().enumerate() {
         schedule_deadline(&mut deadlines, Token(token), connection, timeout);
+        schedule_pacing(&mut pacing, Token(token), connection);
     }
     while active > 0 {
         discard_stale_deadlines(&mut deadlines, &connections);
-        let poll_timeout = deadlines
+        discard_stale_pacing(&mut pacing, &connections);
+        let deadline_timeout = deadlines
             .peek()
             .map(|Reverse((deadline, _, _))| deadline.saturating_duration_since(Instant::now()));
+        let pacing_timeout = pacing
+            .peek()
+            .map(|Reverse((deadline, _, _))| deadline.saturating_duration_since(Instant::now()));
+        let poll_timeout = match (deadline_timeout, pacing_timeout) {
+            (Some(left), Some(right)) => Some(left.min(right)),
+            (left, right) => left.or(right),
+        };
         poll.poll(&mut events, poll_timeout)?;
         for event in &events {
             let token = event.token();
@@ -520,6 +530,7 @@ fn run_worker(
                             summary.socket_errors.write += 1;
                         }
                         schedule_deadline(&mut deadlines, token, connection, timeout);
+                        schedule_pacing(&mut pacing, token, connection);
                         continue;
                     }
                     if connection.stop_after_duration_error(poll.registry())? {
@@ -536,6 +547,7 @@ fn run_worker(
                 summary.socket_errors.connect += 1;
                 connection.retry_address(error, poll.registry(), token)?;
                 schedule_deadline(&mut deadlines, token, connection, timeout);
+                schedule_pacing(&mut pacing, token, connection);
                 continue;
             }
             if event.is_writable() {
@@ -547,6 +559,7 @@ fn run_worker(
                     summary.socket_errors.connect += 1;
                     connection.retry_address(error, poll.registry(), token)?;
                     schedule_deadline(&mut deadlines, token, connection, timeout);
+                    schedule_pacing(&mut pacing, token, connection);
                     continue;
                 }
                 let generation = connection.generation();
@@ -557,11 +570,13 @@ fn run_worker(
                         summary.socket_errors.connect += 1;
                         connection.retry_address(error, poll.registry(), token)?;
                         schedule_deadline(&mut deadlines, token, connection, timeout);
+                        schedule_pacing(&mut pacing, token, connection);
                         continue;
                     }
                     if connection.recover_request(poll.registry(), token)? {
                         summary.socket_errors.write += 1;
                         schedule_deadline(&mut deadlines, token, connection, timeout);
+                        schedule_pacing(&mut pacing, token, connection);
                         continue;
                     }
                     if connection.stop_after_duration_error(poll.registry())? {
@@ -574,6 +589,7 @@ fn run_worker(
                 connection.refresh_interest(poll.registry(), token)?;
                 if connection.generation() != generation {
                     schedule_deadline(&mut deadlines, token, connection, timeout);
+                    schedule_pacing(&mut pacing, token, connection);
                 }
             }
             if event.is_readable() || event.is_read_closed() {
@@ -590,12 +606,14 @@ fn run_worker(
                         summary.socket_errors.connect += 1;
                         connection.retry_address(error, poll.registry(), token)?;
                         schedule_deadline(&mut deadlines, token, connection, timeout);
+                        schedule_pacing(&mut pacing, token, connection);
                         continue;
                     }
                     Err(RunError::Io(error)) => {
                         if connection.recover_request(poll.registry(), token)? {
                             summary.socket_errors.read += 1;
                             schedule_deadline(&mut deadlines, token, connection, timeout);
+                            schedule_pacing(&mut pacing, token, connection);
                             continue;
                         }
                         if connection.stop_after_duration_error(poll.registry())? {
@@ -624,6 +642,7 @@ fn run_worker(
                         active -= 1;
                     } else {
                         schedule_deadline(&mut deadlines, token, connection, timeout);
+                        schedule_pacing(&mut pacing, token, connection);
                     }
                 } else {
                     connection.refresh_interest(poll.registry(), token)?;
@@ -646,6 +665,7 @@ fn run_worker(
                     summary.socket_errors.timeout += 1;
                     if connection.recover_request(poll.registry(), Token(token))? {
                         schedule_deadline(&mut deadlines, Token(token), connection, timeout);
+                        schedule_pacing(&mut pacing, Token(token), connection);
                     } else if connection.stop_after_duration_error(poll.registry())? {
                         active -= 1;
                     } else {
@@ -669,15 +689,33 @@ fn run_worker(
                         }
                     } else {
                         schedule_deadline(&mut deadlines, Token(token), connection, timeout);
+                        schedule_pacing(&mut pacing, Token(token), connection);
                     }
                 }
             }
+        }
+        let now = Instant::now();
+        while let Some(Reverse((deadline, token, generation))) = pacing.peek().copied() {
+            if deadline > now {
+                break;
+            }
+            pacing.pop();
+            let connection = &mut connections[token];
+            if connection.is_done() || connection.generation() != generation {
+                continue;
+            }
+            if connection.stop_if_expired(poll.registry())? {
+                active -= 1;
+                continue;
+            }
+            connection.refresh_interest(poll.registry(), Token(token))?;
         }
     }
     Ok(summary)
 }
 
 type DeadlineQueue = BinaryHeap<Reverse<(Instant, usize, u64)>>;
+type PacingQueue = BinaryHeap<Reverse<(Instant, usize, u64)>>;
 
 fn schedule_deadline(
     deadlines: &mut DeadlineQueue,
@@ -685,12 +723,14 @@ fn schedule_deadline(
     connection: &Connection,
     timeout: Duration,
 ) {
-    if !connection.is_done() {
-        deadlines.push(Reverse((
-            connection.next_deadline(timeout),
-            token.0,
-            connection.generation(),
-        )));
+    if let Some(deadline) = connection.next_deadline(timeout) {
+        deadlines.push(Reverse((deadline, token.0, connection.generation())));
+    }
+}
+
+fn schedule_pacing(pacing: &mut PacingQueue, token: Token, connection: &Connection) {
+    if let Some(deadline) = connection.pacing_deadline() {
+        pacing.push(Reverse((deadline, token.0, connection.generation())));
     }
 }
 
@@ -699,6 +739,20 @@ fn discard_stale_deadlines(deadlines: &mut DeadlineQueue, connections: &[Connect
         let connection = &connections[token];
         if connection.is_done() || connection.generation() != generation {
             deadlines.pop();
+        } else {
+            break;
+        }
+    }
+}
+
+fn discard_stale_pacing(pacing: &mut PacingQueue, connections: &[Connection]) {
+    while let Some(Reverse((deadline, token, generation))) = pacing.peek().copied() {
+        let connection = &connections[token];
+        if connection.is_done()
+            || connection.generation() != generation
+            || connection.pacing_deadline() != Some(deadline)
+        {
+            pacing.pop();
         } else {
             break;
         }
