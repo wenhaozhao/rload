@@ -2,15 +2,15 @@
 
 ## Current status
 
-- `rload` 0.1.0 has been manually published to crates.io.
-- The license-file and third-party-notice completion in this checkout is
-  prepared for the next publish, `0.1.1`; crates.io versions are immutable.
+- `rload` 0.1.0 and 0.1.1 are published to crates.io; the latest published
+  version is 0.1.1.
+- The 0.1.1 package includes the standard license files and third-party notice.
 - The package metadata points to the public repository, homepage, and docs.rs.
 - `./scripts/release-check.sh` is the required local gate.
 - The current release baseline is macOS arm64; Linux and other targets remain
   candidates until their CI gates run.
 
-## Post-0.1.0 priorities
+## Post-0.1.1 priorities
 
 1. Add CI on macOS and Linux for formatting, Clippy, tests, package verification,
    and a smoke HTTP run.
@@ -31,10 +31,10 @@
 
 ## Release checklist
 
-- [ ] Confirm crates.io metadata and README links resolve.
-- [ ] Run `./scripts/release-check.sh` on the release commit.
+- [x] Confirm crates.io metadata and README links resolve.
+- [x] Run `./scripts/release-check.sh` on the release commit.
 - [x] Run the local wrk accuracy and access-log replay matrices and archive
       results.
 - [ ] Run the deferred independent-server accuracy matrix (post-release task).
-- [ ] Review `LICENSE-MIT`, `LICENSE-APACHE`, and `THIRD_PARTY_NOTICES.md`.
+- [x] Review `LICENSE-MIT`, `LICENSE-APACHE`, and `THIRD_PARTY_NOTICES.md`.
 - [ ] Tag the release and publish the changelog.
