@@ -584,6 +584,11 @@ fn run_worker(
                             schedule_deadline(&mut deadlines, token, connection, timeout);
                             continue;
                         }
+                        if connection.stop_after_duration_error(poll.registry())? {
+                            summary.socket_errors.read += 1;
+                            active -= 1;
+                            continue;
+                        }
                         return Err(RunError::Io(error));
                     }
                     Err(error) => return Err(error),
