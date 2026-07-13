@@ -2,8 +2,8 @@
 
 ## Current status
 
-- `rload` 0.1.2 is published to crates.io; 0.2.0 release preparation is in
-  progress on this branch.
+- `rload` 0.1.2 and 0.2.0 are published to crates.io; the main branch is now
+  tracking post-0.2.0 and 0.2.1 development work.
 - The package includes the standard license files and third-party notice.
 - The package metadata points to the public repository, homepage, and docs.rs.
 - `./scripts/release-check.sh` is the required local gate.
@@ -65,6 +65,21 @@
   socket error remain counted, matching wrk's incremental read accounting.
 - Extend the three-way benchmark report to compare `read_bytes` with wrk's
   `read` value while retaining `response_body_bytes` for payload comparisons.
+- Make JSONL request replay tolerant of exported application-log records:
+  ignore unknown top-level fields while retaining validation for known fields.
+- Default an omitted JSONL `method` to `GET`; define whether explicit `null`
+  has the same meaning and cover the decision with tests and documentation.
+- Extract the top-level JSONL `args` field as a raw query string and append it
+  to `uri`, using `?` or `&` as appropriate. Define the canonical input rule
+  that `args` must not include its own separator, and test existing-query,
+  empty-query, and malformed-query edge cases.
+- Add a representative two-line fixture based on real exported logs and use it
+  in parser regression tests, including unknown fields, missing fields, and
+  repeated records.
+- Add opt-in human-readable CLI formatting with `--output-beauty`. Keep the
+  existing default text output byte-compatible for benchmark parsers and keep
+  `--output-format json` unchanged. Add golden and CLI tests for the beauty
+  format without changing the benchmark execution path.
 
 ## Deferred follow-up work
 
