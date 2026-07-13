@@ -5,6 +5,15 @@ use std::thread;
 use std::time::{Duration, Instant};
 use std::{env, fs};
 
+fn normalize_line_endings(text: &str) -> String {
+    text.replace("\r\n", "\n")
+}
+
+#[test]
+fn line_ending_normalization_accepts_windows_fixtures() {
+    assert_eq!(normalize_line_endings("one\r\ntwo\r\n"), "one\ntwo\n");
+}
+
 #[test]
 fn cli_runs_http_load_and_prints_summary() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -148,10 +157,8 @@ fn cli_prints_opt_in_beauty_output_without_changing_default_mode() {
         })
         .collect::<Vec<_>>()
         .join("\n");
-    assert_eq!(
-        format!("{normalized}\n"),
-        include_str!("fixtures/beauty-output.txt")
-    );
+    let expected = normalize_line_endings(include_str!("fixtures/beauty-output.txt"));
+    assert_eq!(format!("{normalized}\n"), expected);
     assert!(!stdout.contains("1 requests completed"));
     server.join().unwrap();
 }
