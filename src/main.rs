@@ -403,9 +403,6 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
             summary.latencies.overflow_count()
         );
     }
-    if let Some(interval) = summary.coordinated_omission_interval {
-        println!("  Correction interval  {:>12.2?}", interval);
-    }
     println!(
         "Requests/sec: {:.2}",
         summary.completed as f64 / summary.runtime.as_secs_f64()
@@ -619,6 +616,9 @@ fn print_beauty(summary: &RunSummary, replay_options: &ReplayOptions, whitelist_
             "  Samples above 1 hour {:>12}",
             summary.latencies.overflow_count()
         );
+    }
+    if let Some(interval) = summary.coordinated_omission_interval {
+        println!("  Correction interval  {:>12.2?}", interval);
     }
     println!();
     println!("Errors");

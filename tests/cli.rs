@@ -105,6 +105,8 @@ fn cli_prints_opt_in_beauty_output_without_changing_default_mode() {
         .args([
             "--requests",
             "1",
+            "--connections",
+            "1",
             "--output-beauty",
             &format!("http://{address}/beauty"),
         ])

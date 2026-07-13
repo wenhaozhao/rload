@@ -19,6 +19,7 @@ Percentile Value
 <value> <value>
 <value> <value>
 <value> <value>
+Correction interval <value>
 
 Errors
 HTTP status <value>
