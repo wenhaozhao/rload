@@ -1,0 +1,37 @@
+rload result
+============
+
+Summary
+Requests completed <value>
+Bytes read <value>
+Response body bytes <value>
+Load window <value>
+Drain time <value>
+
+Throughput
+Requests/sec <value>
+Load requests/sec <value>
+
+Latency
+Average <value>
+Percentile Value
+<value> <value>
+<value> <value>
+<value> <value>
+<value> <value>
+
+Errors
+HTTP status <value>
+Socket total <value>
+connect <value>
+read <value>
+write <value>
+timeout <value>
+
+Breakdowns
+Methods
+GET <value> requests <value> errors avg <value>
+HTTP statuses
+<value> <value> responses
+URI Top <value> (estimated)
+<value> ± <value> /beauty

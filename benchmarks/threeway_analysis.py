@@ -8,7 +8,10 @@ import statistics
 import sys
 from pathlib import Path
 
-from accuracy import METRICS, parse_result
+from accuracy import LIMITS, METRICS, parse_result
+
+THROUGHPUT_REGRESSION_LIMIT = 3.0
+READ_BYTES_MAE_LIMIT = 0.1
 
 
 def required(pattern: str, text: str, path: Path) -> re.Match[str]:
@@ -56,6 +59,7 @@ def main() -> int:
         client: [parse_result(path, "wrk" if client == "wrk" else "rload") for path in paths]
         for client, paths in files.items()
     }
+    failed = False
     print(f"Runs per client: {runs}")
     print("| Client | Mean RPS | Mean peak RSS |")
     print("|---|---:|---:|")
@@ -67,16 +71,34 @@ def main() -> int:
     labels = [f"{metric} MAE" if metric != "p99" else "p99 median abs" for metric in METRICS]
     print("\n| Candidate | " + " | ".join(labels) + " |")
     print("|---|" + "---:|" * len(METRICS))
+    observed_by_candidate = {}
     for candidate in ("release", "dev"):
         values = []
+        observed_by_candidate[candidate] = {}
         for metric in METRICS:
             errors = [
                 abs(current[metric] / baseline[metric] - 1) * 100
                 for baseline, current in zip(parsed["wrk"], parsed[candidate])
             ]
             observed = statistics.median(errors) if metric == "p99" else statistics.mean(errors)
+            observed_by_candidate[candidate][metric] = observed
             values.append(f"{observed:.3f}%")
         print(f"| {candidate} | " + " | ".join(values) + " |")
+
+    for metric, observed in observed_by_candidate["dev"].items():
+        if observed > LIMITS[metric]:
+            print(f"FAIL: dev {metric} error {observed:.3f}% exceeds {LIMITS[metric]:.1f}%")
+            failed = True
+
+    release_rps = statistics.mean(result["rps"] for result in parsed["release"])
+    dev_rps = statistics.mean(result["rps"] for result in parsed["dev"])
+    throughput_change = (dev_rps / release_rps - 1) * 100
+    if throughput_change < -THROUGHPUT_REGRESSION_LIMIT:
+        print(
+            f"FAIL: dev throughput change {throughput_change:.3f}% exceeds "
+            f"-{THROUGHPUT_REGRESSION_LIMIT:.1f}% regression limit"
+        )
+        failed = True
 
     wrk_bytes = [request_and_read_bytes(path, "wrk") for path in files["wrk"]]
     dev_bytes = [request_and_read_bytes(path, "dev") for path in files["dev"]]
@@ -84,8 +106,16 @@ def main() -> int:
         abs((dev_total / dev_requests) / (wrk_total / wrk_requests) - 1) * 100
         for (wrk_requests, wrk_total), (dev_requests, dev_total) in zip(wrk_bytes, dev_bytes)
     ]
-    print(f"\nread_bytes per-request MAE versus wrk: {statistics.mean(errors):.4f}%")
-    return 0
+    read_bytes_mae = statistics.mean(errors)
+    print(f"\nread_bytes per-request MAE versus wrk: {read_bytes_mae:.4f}%")
+    if read_bytes_mae > READ_BYTES_MAE_LIMIT:
+        print(
+            f"FAIL: read_bytes MAE {read_bytes_mae:.4f}% exceeds "
+            f"{READ_BYTES_MAE_LIMIT:.1f}%"
+        )
+        failed = True
+    print("Gate: " + ("FAIL" if failed else "PASS"))
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

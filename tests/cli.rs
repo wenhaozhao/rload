@@ -130,19 +130,25 @@ fn cli_prints_opt_in_beauty_output_without_changing_default_mode() {
             "missing {expected:?} in:\n{stdout}"
         );
     }
-    let section_golden = stdout
+    let normalized = stdout
         .lines()
-        .filter(|line| {
-            matches!(
-                *line,
-                "rload result" | "Summary" | "Throughput" | "Latency" | "Errors" | "Breakdowns"
-            )
+        .map(|line| {
+            line.split_whitespace()
+                .map(|token| {
+                    if token.bytes().any(|byte| byte.is_ascii_digit()) {
+                        "<value>"
+                    } else {
+                        token
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
         })
         .collect::<Vec<_>>()
         .join("\n");
     assert_eq!(
-        format!("{section_golden}\n"),
-        include_str!("fixtures/beauty-sections.txt")
+        format!("{normalized}\n"),
+        include_str!("fixtures/beauty-output.txt")
     );
     assert!(!stdout.contains("1 requests completed"));
     server.join().unwrap();

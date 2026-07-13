@@ -272,7 +272,7 @@ mod tests {
 
     #[test]
     fn defaults_method_and_appends_args_while_ignoring_unknown_fields() {
-        let input = br#"{"uri":"/items","args":"a=1&b=2","extra":true}
+        let input = br#"{"method":null,"uri":"/items","args":"a=1&b=2","extra":true}
 "#;
         let requests = read_from(std::io::Cursor::new(input)).unwrap();
 

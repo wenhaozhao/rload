@@ -54,3 +54,9 @@ payload accounting.
 All required dimensions pass for rload 0.2.1: functional completeness,
 performance regression, statistical accuracy, and the additional wrk byte
 accounting check.
+
+The reusable three-way analysis exits non-zero when the development build
+exceeds any statistical limit, regresses mean throughput by more than 3%
+against the published release, or exceeds 0.1% per-request `read_bytes` MAE.
+Peak RSS is reported for trend review but has no automatic limit because the
+project has not established a cross-platform RSS gate.

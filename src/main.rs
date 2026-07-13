@@ -403,6 +403,9 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
             summary.latencies.overflow_count()
         );
     }
+    if let Some(interval) = summary.coordinated_omission_interval {
+        println!("  Correction interval  {:>12.2?}", interval);
+    }
     println!(
         "Requests/sec: {:.2}",
         summary.completed as f64 / summary.runtime.as_secs_f64()
@@ -647,10 +650,20 @@ fn print_beauty(summary: &RunSummary, replay_options: &ReplayOptions, whitelist_
             println!("  Timestamp speed      {:>11.3}x", replay_options.speed);
         }
         if !replay_options.stages.is_empty() {
-            println!("  Rate stages          {:>12}", replay_options.stages.len());
+            let profile = replay_options
+                .stages
+                .iter()
+                .map(|stage| format!("{:.3?}:{}", stage.duration, stage.rate))
+                .collect::<Vec<_>>()
+                .join(",");
+            println!("  Rate stages          {profile:>12}");
         }
         if let Some(rate) = summary.configured_replay_rate {
             println!("  Configured rate      {:>12}/s", rate);
+            println!(
+                "  Measured rate        {:>12.2}/s",
+                summary.completed as f64 / summary.load_runtime.as_secs_f64()
+            );
         }
         if whitelist_was_set {
             println!(
@@ -661,6 +674,9 @@ fn print_beauty(summary: &RunSummary, replay_options: &ReplayOptions, whitelist_
         let skipped: u64 = summary.skipped_access_log_methods.values().sum();
         if skipped > 0 {
             println!("  Skipped entries      {skipped:>12}");
+            for (method, count) in &summary.skipped_access_log_methods {
+                println!("    {method:<7} {count:>10} unsupported");
+            }
         }
     }
 

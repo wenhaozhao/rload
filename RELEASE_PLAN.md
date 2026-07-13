@@ -82,7 +82,7 @@ Implementation and the local three-way validation gate were completed on
   in parser regression tests, including unknown fields, missing fields, and
   repeated records.
 - Add opt-in human-readable CLI formatting with `--output-beauty`. Keep the
-  existing default text output byte-compatible for benchmark parsers and keep
+  existing default text parser anchors compatible for benchmark scripts and keep
   `--output-format json` unchanged. Add golden and CLI tests for the beauty
   format without changing the benchmark execution path.
 

@@ -189,7 +189,7 @@ is unchanged.
 
 For an explicitly sectioned human-readable report, use `--output-beauty`.
 This mode is mutually exclusive with JSON output and does not change the
-default text format used by benchmark parsers:
+existing default-text parser anchors used by benchmark scripts:
 
 ```bash
 rload -t2 -c100 -d30s --output-beauty http://127.0.0.1/

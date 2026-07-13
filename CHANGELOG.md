@@ -21,8 +21,9 @@ All notable changes to rload are documented here.
 
 ### Compatibility
 
-- Existing default text labels and `--output-format json` schema version 1 are
-  retained. `response_body_bytes` remains available without renaming.
+- Existing default text parser anchors and `--output-format json` schema
+  version 1 are retained. `response_body_bytes` remains available without
+  renaming; the default text report adds one `read_bytes` line.
 
 ## [0.2.0] - 2026-07-12
 
