@@ -50,6 +50,22 @@
   logic into the UI. The CLI and engine must remain usable without GUI
   dependencies.
 
+## v0.2.1 planned work
+
+- Add `RunSummary::read_bytes` permanently alongside the existing
+  `response_body_bytes` field. `read_bytes` will count bytes successfully read
+  from the response socket and handed to the HTTP parser, including response
+  headers, body bytes, and chunk framing, so it can be compared directly with
+  wrk's `read` metric. `response_body_bytes` will continue to represent only
+  decoded response payload bytes for application-level traffic analysis.
+- Report both counters in text output and JSON schema v1 without removing or
+  renaming `response_body_bytes`; add regression coverage for content-length,
+  chunked, connection-close, and partial-read/error cases.
+- Define and document the rule that bytes successfully read before a later
+  socket error remain counted, matching wrk's incremental read accounting.
+- Extend the three-way benchmark report to compare `read_bytes` with wrk's
+  `read` value while retaining `response_body_bytes` for payload comparisons.
+
 ## Deferred follow-up work
 
 - Re-run the wrk accuracy matrix on a dedicated or separate-server host. This is
