@@ -218,8 +218,9 @@ tolerant of exported application logs: unknown fields are ignored, and
 
 Supported methods are `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`, and
 `OPTIONS`. Bodies are UTF-8 strings. When `args` is present, it is appended to
-`uri` as the query string (using `?` or `&` as appropriate). `args` must contain
-only the raw query string and must not start with `?` or `&`. `Host`, `Connection`, and `Content-Length`
+`uri` as the query string. A leading `?` is accepted; a leading `&` is preserved
+as `?&` when `uri` has no query, while either prefix joins an existing query
+with `&`. `Host`, `Connection`, and `Content-Length`
 are managed by the engine and must not appear in the JSON headers. JSONL and
 access-log inputs are mutually exclusive; both support the same replay-order
 options. Each JSONL record is limited to 1 MiB, with an 8 KiB URI, 64 KiB of

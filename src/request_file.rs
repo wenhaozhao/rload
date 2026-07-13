@@ -81,8 +81,7 @@ fn validate(request: JsonRequest, line: usize) -> Result<ReplayRequest, RunError
         "OPTIONS" => Method::Options,
         method => return Err(invalid(line, &format!("unsupported method {method}"))),
     };
-    let path =
-        append_query(request.uri, request.args).map_err(|message| invalid(line, &message))?;
+    let path = append_query(request.uri, request.args);
     let replay = ReplayRequest {
         method,
         path,
@@ -95,17 +94,26 @@ fn validate(request: JsonRequest, line: usize) -> Result<ReplayRequest, RunError
     Ok(replay)
 }
 
-fn append_query(mut uri: String, args: Option<String>) -> Result<String, String> {
+fn append_query(mut uri: String, args: Option<String>) -> String {
     if let Some(args) = args.filter(|args| !args.is_empty()) {
-        if args.starts_with(['?', '&']) {
-            return Err("args must not include a query separator".into());
+        if uri.contains('?') {
+            if uri.ends_with('?') && args.starts_with('&') {
+                uri.push_str(&args);
+                return uri;
+            }
+            let args = args.strip_prefix(['?', '&']).unwrap_or(&args);
+            if !uri.ends_with(['?', '&']) {
+                uri.push('&');
+            }
+            uri.push_str(args);
+        } else if args.starts_with('?') {
+            uri.push_str(&args);
+        } else {
+            uri.push('?');
+            uri.push_str(&args);
         }
-        if !uri.ends_with(['?', '&']) {
-            uri.push(if uri.contains('?') { '&' } else { '?' });
-        }
-        uri.push_str(&args);
     }
-    Ok(uri)
+    uri
 }
 
 pub(crate) fn validate_request(request: &ReplayRequest) -> Result<(), String> {
@@ -307,17 +315,39 @@ mod tests {
     }
 
     #[test]
-    fn normalizes_empty_query_separator_and_rejects_prefixed_args() {
+    fn preserves_or_normalizes_query_separators_by_uri_context() {
         assert_eq!(
-            append_query("/items?".into(), Some("a=1".into())).unwrap(),
+            append_query("/items".into(), Some("a=1".into())),
             "/items?a=1"
         );
         assert_eq!(
-            append_query("/items?x=1&".into(), Some("a=1".into())).unwrap(),
+            append_query("/items".into(), Some("?a=1".into())),
+            "/items?a=1"
+        );
+        assert_eq!(
+            append_query("/items".into(), Some("&a=1".into())),
+            "/items?&a=1"
+        );
+        assert_eq!(
+            append_query("/items?x=1".into(), Some("a=1".into())),
             "/items?x=1&a=1"
         );
-        assert!(append_query("/items".into(), Some("?a=1".into())).is_err());
-        assert!(append_query("/items".into(), Some("&a=1".into())).is_err());
+        assert_eq!(
+            append_query("/items?x=1".into(), Some("?a=1".into())),
+            "/items?x=1&a=1"
+        );
+        assert_eq!(
+            append_query("/items?x=1".into(), Some("&a=1".into())),
+            "/items?x=1&a=1"
+        );
+        assert_eq!(
+            append_query("/items?".into(), Some("?a=1".into())),
+            "/items?a=1"
+        );
+        assert_eq!(
+            append_query("/items?".into(), Some("&a=1".into())),
+            "/items?&a=1"
+        );
     }
 
     #[test]
