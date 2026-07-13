@@ -1,5 +1,7 @@
 # rload
 
+English | [中文](./README.zh-cn.md)
+
 `rload` is a Rust HTTP load generator with wrk-compatible CLI semantics,
 Nginx access-log replay, and structured JSONL request replay.
 
