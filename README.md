@@ -191,14 +191,17 @@ request count is between `estimated_requests - maximum_error` and
 `estimated_requests`; the reported error is therefore a one-sided maximum
 overcount, not a symmetric confidence interval.
 
-Structured request replay accepts one JSON object per line:
+Structured request replay accepts one JSON object per line. It is intentionally
+tolerant of exported application logs: unknown fields are ignored, and
+`method` defaults to `GET` when omitted:
 
 ```json
-{"method":"POST","uri":"/api/items","headers":{"content-type":"application/json"},"body":"{\"id\":1}"}
+{"method":"POST","uri":"/api/items","args":"source=web","headers":{"content-type":"application/json"},"body":"{\"id\":1}","extra_log_field":"ignored"}
 ```
 
 Supported methods are `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`, and
-`OPTIONS`. Bodies are UTF-8 strings. `Host`, `Connection`, and `Content-Length`
+`OPTIONS`. Bodies are UTF-8 strings. When `args` is present, it is appended to
+`uri` as the query string (using `?` or `&` as appropriate). `Host`, `Connection`, and `Content-Length`
 are managed by the engine and must not appear in the JSON headers. JSONL and
 access-log inputs are mutually exclusive; both support the same replay-order
 options. Each JSONL record is limited to 1 MiB, with an 8 KiB URI, 64 KiB of

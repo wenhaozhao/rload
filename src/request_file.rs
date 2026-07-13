@@ -13,10 +13,12 @@ const MAX_URI_BYTES: usize = 8 * 1024;
 const MAX_HEADER_BYTES: usize = 64 * 1024;
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct JsonRequest {
-    method: String,
+    #[serde(default)]
+    method: Option<String>,
     uri: String,
+    #[serde(default)]
+    args: Option<String>,
     #[serde(default)]
     headers: BTreeMap<String, String>,
     #[serde(default)]
@@ -68,7 +70,8 @@ fn read_from(mut reader: impl BufRead) -> Result<Vec<ReplayRequest>, RunError> {
 }
 
 fn validate(request: JsonRequest, line: usize) -> Result<ReplayRequest, RunError> {
-    let method = match request.method.as_str() {
+    let method_name = request.method.as_deref().unwrap_or("GET");
+    let method = match method_name {
         "GET" => Method::Get,
         "HEAD" => Method::Head,
         "POST" => Method::Post,
@@ -78,9 +81,10 @@ fn validate(request: JsonRequest, line: usize) -> Result<ReplayRequest, RunError
         "OPTIONS" => Method::Options,
         method => return Err(invalid(line, &format!("unsupported method {method}"))),
     };
+    let path = append_query(request.uri, request.args);
     let replay = ReplayRequest {
         method,
-        path: request.uri,
+        path,
         headers: request.headers.into_iter().collect(),
         body_present: request.body.is_some(),
         body: request.body.unwrap_or_default().into_bytes(),
@@ -88,6 +92,14 @@ fn validate(request: JsonRequest, line: usize) -> Result<ReplayRequest, RunError
     };
     validate_request(&replay).map_err(|message| invalid(line, &message))?;
     Ok(replay)
+}
+
+fn append_query(mut uri: String, args: Option<String>) -> String {
+    if let Some(args) = args.filter(|args| !args.is_empty()) {
+        uri.push(if uri.contains('?') { '&' } else { '?' });
+        uri.push_str(&args);
+    }
+    uri
 }
 
 pub(crate) fn validate_request(request: &ReplayRequest) -> Result<(), String> {
@@ -215,8 +227,9 @@ mod tests {
     #[test]
     fn rejects_managed_headers_with_line_number() {
         let request = JsonRequest {
-            method: "POST".into(),
+            method: Some("POST".into()),
             uri: "/".into(),
+            args: None,
             headers: BTreeMap::from([("Content-Length".into(), "9".into())]),
             body: Some("payload".into()),
         };
@@ -230,8 +243,9 @@ mod tests {
     #[test]
     fn rejects_transfer_encoding_and_invalid_percent_escape() {
         let request = JsonRequest {
-            method: "POST".into(),
+            method: Some("POST".into()),
             uri: "/valid".into(),
+            args: None,
             headers: BTreeMap::from([("Transfer-Encoding".into(), "chunked".into())]),
             body: Some("payload".into()),
         };
@@ -240,13 +254,37 @@ mod tests {
 
         assert!(error.to_string().contains("managed by rload"));
         let invalid_uri = JsonRequest {
-            method: "GET".into(),
+            method: Some("GET".into()),
             uri: "/bad%escape".into(),
+            args: None,
             headers: BTreeMap::new(),
             body: None,
         };
         let error = validate(invalid_uri, 3).unwrap_err();
         assert!(error.to_string().contains("URI must use origin form"));
+    }
+
+    #[test]
+    fn defaults_method_and_appends_args_while_ignoring_unknown_fields() {
+        let input = br#"{"uri":"/items","args":"a=1&b=2","extra":true}
+"#;
+        let requests = read_from(std::io::Cursor::new(input)).unwrap();
+
+        assert_eq!(requests[0].method, Method::Get);
+        assert_eq!(requests[0].path, "/items?a=1&b=2");
+    }
+
+    #[test]
+    fn appends_args_with_ampersand_to_existing_query() {
+        let request = JsonRequest {
+            method: None,
+            uri: "/items?existing=1".into(),
+            args: Some("a=2".into()),
+            headers: BTreeMap::new(),
+            body: None,
+        };
+
+        assert_eq!(validate(request, 1).unwrap().path, "/items?existing=1&a=2");
     }
 
     #[test]
