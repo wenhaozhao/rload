@@ -1,0 +1,6 @@
+rload result
+Summary
+Throughput
+Latency
+Errors
+Breakdowns

@@ -101,6 +101,20 @@ We establish a concrete four-phase roadmap to drive `rload` towards its target p
 
 ---
 
+### Maintenance: v0.2.1 - Metrics and Replay Usability [Completed]
+*Focus: Align byte accounting with wrk while improving real-log ingestion and
+human-readable reporting without changing benchmark defaults.*
+
+* **Key Deliverables**:
+  1. **[x] Dual Byte Counters**: Retain decoded `response_body_bytes` and add
+     wrk-compatible `read_bytes`, including bytes read before later failures.
+  2. **[x] Tolerant JSONL Exports**: Ignore unknown fields, default missing or
+     null methods to GET, and append the `args` query string safely.
+  3. **[x] Optional Beauty Output**: Add `--output-beauty` while preserving the
+     default text format and JSON schema version 1.
+
+---
+
 ### Phase 2: v0.3.0 - Declarative Tests and CI Gating
 *Focus: Empower developers with CI-native benchmarking configurations and live observability.*
 

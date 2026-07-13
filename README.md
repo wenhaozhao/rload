@@ -15,7 +15,8 @@ The current vertical slice provides:
 - persistent connections with request-count or duration limits;
 - socket-error accounting and connection recovery during duration-limited runs;
 - `Content-Length`, chunked, and connection-close response framing;
-- completed request, response body byte, status error, and average latency output.
+- completed request, socket-read byte, response-body byte, status error, and
+  average latency output.
 
 Lua and LuaJIT compatibility are explicitly out of scope.
 
@@ -48,7 +49,7 @@ result is intentionally called out rather than rounded into a pass.
 
 ### Functional coverage
 
-| Capability | wrk 4.2.0 | rload 0.2.0 development |
+| Capability | wrk 4.2.0 | rload 0.2.1 development |
 |---|---|---|
 | HTTP/1.1 static request load | Yes | Yes |
 | HTTP and HTTPS with connection reuse | Yes | Yes, including TLS verification and SNI |
@@ -74,7 +75,7 @@ CLI or duplicate load-generation logic.
 
 ## Build and install
 
-The 0.2.0 release candidate is validated with stable Rust 1.96.1 on macOS
+The 0.2.x release line is validated with stable Rust 1.96.1 on macOS
 arm64, Linux, and Windows. Windows CI additionally covers PowerShell
 invocation, path handling, and socket recovery.
 
@@ -186,6 +187,20 @@ timestamp, or stage pacing configuration. Configuration and runtime errors
 remain on stderr and return a non-zero exit status. The default `text` format
 is unchanged.
 
+For an explicitly sectioned human-readable report, use `--output-beauty`.
+This mode is mutually exclusive with JSON output and does not change the
+default text format used by benchmark parsers:
+
+```bash
+rload -t2 -c100 -d30s --output-beauty http://127.0.0.1/
+```
+
+Text and JSON summaries expose both byte counters. `read_bytes` counts every
+response byte successfully read and handed to the HTTP parser, including
+headers, decoded-body input, and chunk framing. `response_body_bytes` counts
+only the decoded response payload. Bytes read before a later socket failure
+remain included in `read_bytes`.
+
 URI Top-20 counts use a bounded Space-Saving estimate. For each entry, the true
 request count is between `estimated_requests - maximum_error` and
 `estimated_requests`; the reported error is therefore a one-sided maximum
@@ -193,7 +208,7 @@ overcount, not a symmetric confidence interval.
 
 Structured request replay accepts one JSON object per line. It is intentionally
 tolerant of exported application logs: unknown fields are ignored, and
-`method` defaults to `GET` when omitted:
+`method` defaults to `GET` when omitted or `null`:
 
 ```json
 {"method":"POST","uri":"/api/items","args":"source=web","headers":{"content-type":"application/json"},"body":"{\"id\":1}","extra_log_field":"ignored"}
@@ -201,7 +216,8 @@ tolerant of exported application logs: unknown fields are ignored, and
 
 Supported methods are `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`, and
 `OPTIONS`. Bodies are UTF-8 strings. When `args` is present, it is appended to
-`uri` as the query string (using `?` or `&` as appropriate). `Host`, `Connection`, and `Content-Length`
+`uri` as the query string (using `?` or `&` as appropriate). `args` must contain
+only the raw query string and must not start with `?` or `&`. `Host`, `Connection`, and `Content-Length`
 are managed by the engine and must not appear in the JSON headers. JSONL and
 access-log inputs are mutually exclusive; both support the same replay-order
 options. Each JSONL record is limited to 1 MiB, with an 8 KiB URI, 64 KiB of

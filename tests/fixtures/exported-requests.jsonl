@@ -1,0 +1,2 @@
+{"_msg":"exported application log","_stream":"{status=200}","agent":"example-client/1.0","args":"uid=user-1&friendId=42","host":"10.0.0.1","http_host":"api.example.test","method":"GET","status":"200","uri":"/v1/items"}
+{"_msg":"exported application log","_stream":"{status=200}","agent":"example-client/1.0","args":"uid=user-1&friendId=42","host":"10.0.0.1","http_host":"api.example.test","status":"200","uri":"/v1/items"}

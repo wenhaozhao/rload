@@ -34,7 +34,8 @@ fn read_request_head(stream: &mut std::net::TcpStream) -> std::io::Result<()> {
 
 #[test]
 fn run_sends_request_and_records_content_length_response() {
-    let url = spawn_server(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK");
+    let response = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK";
+    let url = spawn_server(response);
     let config = RunConfig {
         url,
         method: Method::Get,
@@ -47,6 +48,7 @@ fn run_sends_request_and_records_content_length_response() {
     let summary = run(config).unwrap();
 
     assert_eq!(summary.completed, 1);
+    assert_eq!(summary.read_bytes, response.len() as u64);
     assert_eq!(summary.response_body_bytes, 2);
     assert_eq!(summary.status_errors, 0);
     assert_eq!(summary.latencies.len(), 1);
@@ -113,9 +115,8 @@ fn run_reuses_connection_for_multiple_requests() {
 
 #[test]
 fn run_reads_chunked_response_body() {
-    let url = spawn_server(
-        b"HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip, chunked\r\nConnection: keep-alive, close\r\n\r\n2\r\nOK\r\n0\r\n\r\n",
-    );
+    let response = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip, chunked\r\nConnection: keep-alive, close\r\n\r\n2\r\nOK\r\n0\r\n\r\n";
+    let url = spawn_server(response);
     let config = RunConfig {
         url,
         method: Method::Get,
@@ -128,6 +129,7 @@ fn run_reads_chunked_response_body() {
     let summary = run(config).unwrap();
 
     assert_eq!(summary.completed, 1);
+    assert_eq!(summary.read_bytes, response.len() as u64);
     assert_eq!(summary.response_body_bytes, 2);
 }
 
@@ -169,7 +171,8 @@ fn duration_run_does_not_recover_invalid_http_responses() {
 
 #[test]
 fn run_reads_body_delimited_by_connection_close() {
-    let url = spawn_server(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\nOK");
+    let response = b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\nOK";
+    let url = spawn_server(response);
     let config = RunConfig {
         url,
         method: Method::Get,
@@ -181,6 +184,7 @@ fn run_reads_body_delimited_by_connection_close() {
 
     let summary = run(config).unwrap();
 
+    assert_eq!(summary.read_bytes, response.len() as u64);
     assert_eq!(summary.response_body_bytes, 2);
 }
 
@@ -615,12 +619,14 @@ fn run_times_out_unresponsive_request_near_configured_deadline() {
 
 #[test]
 fn duration_run_recovers_after_connection_drops_mid_request() {
+    const PARTIAL_RESPONSE: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nabc";
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
     let server = thread::spawn(move || {
         let (mut dropped, _) = listener.accept().unwrap();
         let mut buffer = [0; 1024];
         let _ = dropped.read(&mut buffer);
+        dropped.write_all(PARTIAL_RESPONSE).unwrap();
         drop(dropped);
 
         let (mut stream, _) = listener.accept().unwrap();
@@ -645,6 +651,7 @@ fn duration_run_recovers_after_connection_drops_mid_request() {
     let summary = run(config).unwrap();
 
     assert!(summary.completed > 0);
+    assert!(summary.read_bytes >= PARTIAL_RESPONSE.len() as u64);
     assert_eq!(summary.socket_errors.total(), 1);
     assert_eq!(summary.socket_errors.read, 1);
     assert_eq!(summary.socket_errors.connect, 0);

@@ -81,7 +81,8 @@ fn validate(request: JsonRequest, line: usize) -> Result<ReplayRequest, RunError
         "OPTIONS" => Method::Options,
         method => return Err(invalid(line, &format!("unsupported method {method}"))),
     };
-    let path = append_query(request.uri, request.args);
+    let path =
+        append_query(request.uri, request.args).map_err(|message| invalid(line, &message))?;
     let replay = ReplayRequest {
         method,
         path,
@@ -94,12 +95,17 @@ fn validate(request: JsonRequest, line: usize) -> Result<ReplayRequest, RunError
     Ok(replay)
 }
 
-fn append_query(mut uri: String, args: Option<String>) -> String {
+fn append_query(mut uri: String, args: Option<String>) -> Result<String, String> {
     if let Some(args) = args.filter(|args| !args.is_empty()) {
-        uri.push(if uri.contains('?') { '&' } else { '?' });
+        if args.starts_with(['?', '&']) {
+            return Err("args must not include a query separator".into());
+        }
+        if !uri.ends_with(['?', '&']) {
+            uri.push(if uri.contains('?') { '&' } else { '?' });
+        }
         uri.push_str(&args);
     }
-    uri
+    Ok(uri)
 }
 
 pub(crate) fn validate_request(request: &ReplayRequest) -> Result<(), String> {
@@ -285,6 +291,33 @@ mod tests {
         };
 
         assert_eq!(validate(request, 1).unwrap().path, "/items?existing=1&a=2");
+    }
+
+    #[test]
+    fn accepts_exported_application_log_fixture() {
+        let requests = read_from(std::io::Cursor::new(include_bytes!(
+            "../tests/fixtures/exported-requests.jsonl"
+        )))
+        .unwrap();
+
+        assert_eq!(requests.len(), 2);
+        assert_eq!(requests[0].method, Method::Get);
+        assert_eq!(requests[0].path, "/v1/items?uid=user-1&friendId=42");
+        assert_eq!(requests[1], requests[0]);
+    }
+
+    #[test]
+    fn normalizes_empty_query_separator_and_rejects_prefixed_args() {
+        assert_eq!(
+            append_query("/items?".into(), Some("a=1".into())).unwrap(),
+            "/items?a=1"
+        );
+        assert_eq!(
+            append_query("/items?x=1&".into(), Some("a=1".into())).unwrap(),
+            "/items?x=1&a=1"
+        );
+        assert!(append_query("/items".into(), Some("?a=1".into())).is_err());
+        assert!(append_query("/items".into(), Some("&a=1".into())).is_err());
     }
 
     #[test]

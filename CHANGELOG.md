@@ -2,6 +2,28 @@
 
 All notable changes to rload are documented here.
 
+## [0.2.1] - 2026-07-13
+
+### Added
+
+- A wrk-compatible `read_bytes` response counter alongside the existing
+  decoded `response_body_bytes` metric in text and JSON output.
+- Opt-in sectioned CLI output with `--output-beauty`.
+- JSONL `args` query-string extraction and representative exported-log
+  regression fixtures.
+
+### Changed
+
+- JSONL request replay now ignores unknown top-level fields and defaults a
+  missing or null `method` to `GET`.
+- Successfully read response bytes remain counted when a later socket error
+  interrupts the request.
+
+### Compatibility
+
+- Existing default text labels and `--output-format json` schema version 1 are
+  retained. `response_body_bytes` remains available without renaming.
+
 ## [0.2.0] - 2026-07-12
 
 ### Added

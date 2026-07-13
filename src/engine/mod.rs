@@ -673,7 +673,9 @@ fn run_worker(
                 }
             }
             if event.is_readable() || event.is_read_closed() {
-                let response = match connection.read_response() {
+                let response = connection.read_response();
+                summary.read_bytes += connection.take_read_bytes();
+                let response = match response {
                     Ok(response) => response,
                     Err(RunError::Io(error))
                         if !connection.has_started()

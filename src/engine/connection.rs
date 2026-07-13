@@ -33,6 +33,7 @@ pub(super) struct Connection {
     limit: ConnectionLimit,
     done: bool,
     timer_generation: u64,
+    pending_read_bytes: u64,
     tls: Option<TlsParameters>,
 }
 
@@ -76,6 +77,7 @@ impl Connection {
             limit,
             done: false,
             timer_generation: 0,
+            pending_read_bytes: 0,
             tls,
         })
     }
@@ -179,6 +181,7 @@ impl Connection {
                     break;
                 }
                 Ok(read) => {
+                    self.pending_read_bytes += read as u64;
                     if let Some(parsed) = self.decoder.feed(&buffer[..read], false)? {
                         return Ok(Some(self.completed_response(parsed, false)));
                     }
@@ -201,6 +204,10 @@ impl Connection {
             return Ok(None);
         };
         Ok(Some(self.completed_response(parsed, eof)))
+    }
+
+    pub(super) fn take_read_bytes(&mut self) -> u64 {
+        std::mem::take(&mut self.pending_read_bytes)
     }
 
     fn completed_response(&self, parsed: ParsedResponse, eof: bool) -> CompletedResponse {

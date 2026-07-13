@@ -13,6 +13,7 @@ use rload::{
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum OutputFormat {
     Text,
+    Beauty,
     Json,
 }
 
@@ -45,6 +46,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     let mut replay_speed_was_set = false;
     let mut replay_stages = Vec::new();
     let mut output_format = OutputFormat::Text;
+    let mut output_beauty = false;
     let mut method = Method::Get;
     let mut method_was_set = false;
     let mut headers = Vec::new();
@@ -159,6 +161,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                     }
                 };
             }
+            "--output-beauty" => output_beauty = true,
             "-X" | "--request" => {
                 let value = attached_value
                     .or_else(|| args.next())
@@ -267,6 +270,12 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     if duration.is_some() && requests_were_set {
         return Err("--duration and --requests cannot be used together".into());
     }
+    if output_beauty && output_format == OutputFormat::Json {
+        return Err("--output-beauty cannot be used with --output-format json".into());
+    }
+    if output_beauty {
+        output_format = OutputFormat::Beauty;
+    }
     if access_log.is_some() && request_file.is_some() {
         return Err("--access-log and --request-file cannot be used together".into());
     }
@@ -367,9 +376,14 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
         print_json(&summary, &replay_options, whitelist_was_set)?;
         return Ok(());
     }
+    if output_format == OutputFormat::Beauty {
+        print_beauty(&summary, &replay_options, whitelist_was_set);
+        return Ok(());
+    }
     let average_latency = summary.latencies.mean();
 
     println!("{} requests completed", summary.completed);
+    println!("{} B read", summary.read_bytes);
     println!("{} response body B read", summary.response_body_bytes);
     println!("Average latency: {:.2?}", average_latency);
     println!("Latency Distribution");
@@ -514,6 +528,7 @@ fn print_json(
         "schema_version": 1,
         "summary": {
             "completed_requests": summary.completed,
+            "read_bytes": summary.read_bytes,
             "response_body_bytes": summary.response_body_bytes,
             "runtime_us": duration_us(summary.runtime),
             "load_runtime_us": duration_us(summary.load_runtime),
@@ -562,6 +577,121 @@ fn print_json(
     Ok(())
 }
 
+fn print_beauty(summary: &RunSummary, replay_options: &ReplayOptions, whitelist_was_set: bool) {
+    println!("rload result");
+    println!("============");
+    println!();
+    println!("Summary");
+    println!("  Requests completed   {:>12}", summary.completed);
+    println!("  Bytes read           {:>12}", summary.read_bytes);
+    println!("  Response body bytes  {:>12}", summary.response_body_bytes);
+    println!("  Load window          {:>12.2?}", summary.load_runtime);
+    println!("  Drain time           {:>12.2?}", summary.drain_runtime);
+    println!();
+    println!("Throughput");
+    println!(
+        "  Requests/sec         {:>12.2}",
+        summary.completed as f64 / summary.runtime.as_secs_f64()
+    );
+    println!(
+        "  Load requests/sec    {:>12.2}",
+        summary.completed as f64 / summary.load_runtime.as_secs_f64()
+    );
+    println!();
+    println!("Latency");
+    println!("  Average              {:>12.2?}", summary.latencies.mean());
+    println!("  Percentile                Value");
+    for percentile in [50.0, 75.0, 90.0, 99.0] {
+        println!(
+            "  {:>6.0}%              {:>12.2?}",
+            percentile,
+            summary
+                .latencies
+                .percentile(percentile)
+                .expect("built-in percentile is valid")
+        );
+    }
+    if summary.latencies.overflow_count() > 0 {
+        println!(
+            "  Samples above 1 hour {:>12}",
+            summary.latencies.overflow_count()
+        );
+    }
+    println!();
+    println!("Errors");
+    println!("  HTTP status          {:>12}", summary.status_errors);
+    println!(
+        "  Socket total         {:>12}",
+        summary.socket_errors.total()
+    );
+    println!(
+        "    connect            {:>12}",
+        summary.socket_errors.connect
+    );
+    println!("    read               {:>12}", summary.socket_errors.read);
+    println!("    write              {:>12}", summary.socket_errors.write);
+    println!(
+        "    timeout            {:>12}",
+        summary.socket_errors.timeout
+    );
+
+    if replay_options.timestamps
+        || !replay_options.stages.is_empty()
+        || summary.configured_replay_rate.is_some()
+        || whitelist_was_set
+        || !summary.skipped_access_log_methods.is_empty()
+    {
+        println!();
+        println!("Replay");
+        if replay_options.timestamps {
+            println!("  Timestamp speed      {:>11.3}x", replay_options.speed);
+        }
+        if !replay_options.stages.is_empty() {
+            println!("  Rate stages          {:>12}", replay_options.stages.len());
+        }
+        if let Some(rate) = summary.configured_replay_rate {
+            println!("  Configured rate      {:>12}/s", rate);
+        }
+        if whitelist_was_set {
+            println!(
+                "  Filtered entries     {:>12}",
+                summary.filtered_replay_entries
+            );
+        }
+        let skipped: u64 = summary.skipped_access_log_methods.values().sum();
+        if skipped > 0 {
+            println!("  Skipped entries      {skipped:>12}");
+        }
+    }
+
+    println!();
+    println!("Breakdowns");
+    println!("  Methods");
+    for method in Method::ALL {
+        let statistics = summary.method(method);
+        if statistics.completed > 0 {
+            println!(
+                "    {:<7} {:>10} requests  {:>8} errors  avg {:.2?}",
+                method.as_str(),
+                statistics.completed,
+                statistics.status_errors,
+                statistics.latencies.mean()
+            );
+        }
+    }
+    println!("  HTTP statuses");
+    for (status, count) in summary.observed_statuses() {
+        println!("    {status:<7} {count:>10} responses");
+    }
+    println!("  URI Top 20 (estimated)");
+    for uri in summary.top_uris() {
+        println!(
+            "    {:>10} ±{:>8}  {}",
+            uri.estimated_requests, uri.maximum_error, uri.uri
+        );
+    }
+}
+
 fn duration_us(duration: Duration) -> u64 {
     u64::try_from(duration.as_micros()).unwrap_or(u64::MAX)
 }
@@ -584,6 +714,7 @@ fn print_help() {
     println!("      --replay-speed <N>   Timestamp playback multiplier [default: 1.0]");
     println!("      --replay-stages <D:R,...>  Timed replay-rate stages");
     println!("      --output-format <FORMAT>  text or json [default: text]");
+    println!("      --output-beauty  Print a sectioned human-readable result");
     println!("  -X, --request <METHOD>  HTTP method for an ordinary request");
     println!("  -H, --header <HEADER>  Request header; may be repeated");
     println!("      --data <DATA>    UTF-8 body; repeated values are joined with '&'");

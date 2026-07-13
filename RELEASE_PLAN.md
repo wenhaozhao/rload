@@ -52,6 +52,11 @@
 
 ## v0.2.1 planned work
 
+Implementation and the local three-way validation gate were completed on
+2026-07-13. The raw benchmark results are archived under
+`benchmarks/results/threeway-20260713T102319Z`, with the sign-off report in
+`benchmarks/VALIDATION_2026-07-13_0.2.1.md`.
+
 - Add `RunSummary::read_bytes` permanently alongside the existing
   `response_body_bytes` field. `read_bytes` will count bytes successfully read
   from the response socket and handed to the HTTP parser, including response

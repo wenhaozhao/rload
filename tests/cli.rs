@@ -76,11 +76,95 @@ fn cli_outputs_machine_readable_json_summary() {
     assert_eq!(result["schema_version"], 1);
     assert_eq!(result["summary"]["completed_requests"], 1);
     assert_eq!(result["summary"]["response_body_bytes"], 2);
+    assert!(result["summary"]["read_bytes"].as_u64().unwrap() > 2);
     assert_eq!(result["methods"]["GET"]["requests"], 1);
     assert_eq!(result["http_statuses"]["201"], 1);
     assert!(result["latency"]["p99_us"].as_u64().is_some());
     assert_eq!(result["replay"]["configured_rate"], serde_json::Value::Null);
     server.join().unwrap();
+}
+
+#[test]
+fn cli_prints_opt_in_beauty_output_without_changing_default_mode() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = Vec::new();
+        while !request.ends_with(b"\r\n\r\n") {
+            let mut byte = [0];
+            stream.read_exact(&mut byte).unwrap();
+            request.push(byte[0]);
+        }
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK")
+            .unwrap();
+    });
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--requests",
+            "1",
+            "--output-beauty",
+            &format!("http://{address}/beauty"),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    for expected in [
+        "rload result",
+        "Summary",
+        "Bytes read",
+        "Response body bytes",
+        "Throughput",
+        "Latency",
+        "Errors",
+        "Breakdowns",
+        "GET",
+        "/beauty",
+    ] {
+        assert!(
+            stdout.contains(expected),
+            "missing {expected:?} in:\n{stdout}"
+        );
+    }
+    let section_golden = stdout
+        .lines()
+        .filter(|line| {
+            matches!(
+                *line,
+                "rload result" | "Summary" | "Throughput" | "Latency" | "Errors" | "Breakdowns"
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert_eq!(
+        format!("{section_golden}\n"),
+        include_str!("fixtures/beauty-sections.txt")
+    );
+    assert!(!stdout.contains("1 requests completed"));
+    server.join().unwrap();
+}
+
+#[test]
+fn cli_rejects_beauty_with_json_output() {
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--output-beauty",
+            "--output-format",
+            "json",
+            "http://127.0.0.1:1/",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("--output-beauty cannot be used with --output-format json")
+    );
 }
 
 #[test]
