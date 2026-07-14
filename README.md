@@ -172,6 +172,56 @@ the final rate remains active. Stages work with sequential, shuffle, or random
 selection and with either replay input format. They are mutually exclusive with
 `--replay-rate` and `--replay-timestamps`.
 
+### JSONL request schema
+
+JSONL replay accepts an optional schema file for extracting fields from nested
+records. The schema changes extraction paths only; it does not change existing
+method, URI, header, body, query-string, or validation rules. Every mapping is
+optional. When a mapping is omitted, rload uses the current top-level JSONL
+field extraction for that field.
+
+```yaml
+schema_version: 1
+
+fields:
+  method:
+    path: http.request.method
+  uri:
+    path: http.request.path
+  args:
+    path: http.request.query
+  headers:
+    path: http.request.headers
+  body:
+    path: http.request.body
+  timestamp:
+    path: event.timestamp
+    format: "%d/%b/%Y:%H:%M:%S.%f %z"
+```
+
+Use it with:
+
+```bash
+rload --request-file requests.jsonl --request-schema request-schema.yaml \
+  --replay-timestamps http://127.0.0.1:8080
+```
+
+Supported mappings are `method`, `uri`, `args`, `headers`, `body`, and
+`timestamp`. Paths use dot-separated JSON object fields; array indexes and
+expressions are not supported. `uri` remains required by the existing JSONL
+validation, while an omitted `method` continues to default to `GET`.
+
+The timestamp mapping accepts `timestamp_micros` as the canonical integer
+microsecond field and `time`/`_time` as aliases. For formatted string values,
+`timestamp.format` uses strftime/chrono-style placeholders and defaults to the
+Nginx format `%d/%b/%Y:%H:%M:%S %z`, for example
+`03/Jul/2026:08:41:17 +0000`. Fractional seconds can be parsed with `%f`.
+RFC3339 values can be selected explicitly with a schema format such as
+`%Y-%m-%dT%H:%M:%S%z`. Timestamp pacing requires timestamps in every record,
+rejects malformed or decreasing values, and uses the same microsecond pacing
+semantics as access-log replay. No separate timestamp-format CLI option is
+provided.
+
 ### Machine-readable results
 
 Use `--output-format json` when integrating rload with CI, dashboards, or the
