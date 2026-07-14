@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::RunError;
@@ -123,6 +124,19 @@ impl Default for ReplayOptions {
             stages: Vec::new(),
         }
     }
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ReplayRunOptions {
+    pub replay: ReplayOptions,
+    pub rounds: Option<u64>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RequestFileReplayOptions {
+    pub replay: ReplayOptions,
+    pub rounds: Option<u64>,
+    pub schema: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

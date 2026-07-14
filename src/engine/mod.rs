@@ -17,8 +17,8 @@ use crate::request_file::{self, validate_request};
 use crate::request_sequence::{EncodedRequest, RequestSequence, method_uri_start};
 use crate::target::Target;
 use crate::{
-    ReplayFilter, ReplayOptions, ReplayOrder, RequestOptions, RunConfig, RunError, RunLimit,
-    RunSummary,
+    ReplayFilter, ReplayOptions, ReplayOrder, ReplayRunOptions, RequestFileReplayOptions,
+    RequestOptions, RunConfig, RunError, RunLimit, RunSummary,
 };
 use connection::{Connection, Expiration, TlsParameters};
 
@@ -48,14 +48,40 @@ pub fn run_access_log_with_filter(
     options: ReplayOptions,
     filter: ReplayFilter,
 ) -> Result<RunSummary, RunError> {
-    validate_replay_options(&options)?;
+    run_access_log_with_run_options(
+        config,
+        path,
+        ReplayRunOptions {
+            replay: options,
+            rounds: None,
+        },
+        filter,
+    )
+}
+
+pub fn run_access_log_with_run_options(
+    config: RunConfig,
+    path: impl AsRef<Path>,
+    options: ReplayRunOptions,
+    filter: ReplayFilter,
+) -> Result<RunSummary, RunError> {
+    validate_replay_options(&options.replay, options.rounds)?;
     let replay = access_log::read(path.as_ref())?;
     let skipped_methods = replay.skipped_methods;
     let (replay, filtered) = replay_filter::apply(replay.requests, &filter)?;
+    if options.replay.timestamps {
+        validate_timestamps(&replay, TimestampSource::AccessLog)?;
+    }
     run_with_roots(
         config,
         RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned()),
-        RequestInput::Replay(replay, options, filtered, skipped_methods),
+        RequestInput::Replay(
+            replay,
+            options.replay,
+            options.rounds,
+            filtered,
+            skipped_methods,
+        ),
     )
 }
 
@@ -77,18 +103,49 @@ pub fn run_request_file_with_filter(
     options: ReplayOptions,
     filter: ReplayFilter,
 ) -> Result<RunSummary, RunError> {
-    validate_replay_options(&options)?;
-    if options.timestamps {
+    run_request_file_with_run_options(
+        config,
+        path,
+        RequestFileReplayOptions {
+            replay: options,
+            rounds: None,
+            schema: None,
+        },
+        filter,
+    )
+}
+
+pub fn run_request_file_with_run_options(
+    config: RunConfig,
+    path: impl AsRef<Path>,
+    options: RequestFileReplayOptions,
+    filter: ReplayFilter,
+) -> Result<RunSummary, RunError> {
+    validate_replay_options(&options.replay, options.rounds)?;
+    if options.replay.timestamps && options.schema.is_none() {
         return Err(RunError::InvalidConfig(
-            "timestamp pacing requires an access log".into(),
+            "JSONL timestamp pacing requires a request schema".into(),
         ));
     }
-    let replay = request_file::read(path.as_ref())?;
+    let replay = request_file::read(
+        path.as_ref(),
+        options.schema.as_deref(),
+        options.replay.timestamps,
+    )?;
     let (replay, filtered) = replay_filter::apply(replay, &filter)?;
+    if options.replay.timestamps {
+        validate_timestamps(&replay, TimestampSource::RequestFile)?;
+    }
     run_with_roots(
         config,
         RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned()),
-        RequestInput::Replay(replay, options, filtered, Default::default()),
+        RequestInput::Replay(
+            replay,
+            options.replay,
+            options.rounds,
+            filtered,
+            Default::default(),
+        ),
     )
 }
 
@@ -103,10 +160,20 @@ pub fn run_with_request(
     )
 }
 
-fn validate_replay_options(options: &ReplayOptions) -> Result<(), RunError> {
+fn validate_replay_options(options: &ReplayOptions, rounds: Option<u64>) -> Result<(), RunError> {
     if options.order == ReplayOrder::Sequential && options.seed.is_some() {
         return Err(RunError::InvalidConfig(
             "replay seed requires shuffle or random order".into(),
+        ));
+    }
+    if rounds == Some(0) {
+        return Err(RunError::InvalidConfig(
+            "replay rounds must be greater than zero".into(),
+        ));
+    }
+    if rounds.is_some() && options.order == ReplayOrder::Random {
+        return Err(RunError::InvalidConfig(
+            "replay rounds cannot be combined with random replay order".into(),
         ));
     }
     if options.timestamps && options.order != ReplayOrder::Sequential {
@@ -154,48 +221,62 @@ fn validate_replay_options(options: &ReplayOptions) -> Result<(), RunError> {
 }
 
 fn run_with_roots(
-    config: RunConfig,
+    mut config: RunConfig,
     root_store: RootCertStore,
     input: RequestInput,
 ) -> Result<RunSummary, RunError> {
     let target = Target::parse(&config.url)?;
     config.validate()?;
-    let (requests, filtered_replay_entries, skipped_access_log_methods, replay_rate) = match input {
-        RequestInput::Replay(replay, options, filtered, skipped_methods) => (
-            {
-                if options.timestamps {
-                    validate_timestamps(&replay)?;
-                }
-                let sequence = RequestSequence::new(
-                    replay
-                        .into_iter()
-                        .map(|request| {
-                            let uri_start = request.method.as_str().len() + 1;
-                            let uri = uri_start..uri_start + request.path.len();
-                            let bytes = target.replay_request(&request);
-                            EncodedRequest {
-                                bytes,
-                                method_uri_start: method_uri_start(request.method, uri.start),
-                                uri_end: uri.end as u32,
-                                timestamp_micros: request.timestamp_micros,
-                            }
-                        })
-                        .collect(),
-                    options.order,
-                    options.seed.unwrap_or_else(replay_seed),
-                )
-                .with_rate(options.rate)
-                .with_stages(&options.stages);
-                if options.timestamps {
-                    sequence.with_timestamps(options.speed)
-                } else {
-                    sequence
-                }
-            },
-            filtered,
-            skipped_methods,
-            options.rate,
-        ),
+    let (
+        requests,
+        filtered_replay_entries,
+        skipped_access_log_methods,
+        replay_rate,
+        replay_entries,
+        configured_replay_rounds,
+    ) = match input {
+        RequestInput::Replay(replay, options, rounds, filtered, skipped_methods) => {
+            let replay_entries = replay.len() as u64;
+            if let Some(rounds) = rounds {
+                config.limit =
+                    RunLimit::Requests(replay_entries.checked_mul(rounds).ok_or_else(|| {
+                        RunError::InvalidConfig("replay round request count is too large".into())
+                    })?);
+            }
+            let sequence = RequestSequence::new(
+                replay
+                    .into_iter()
+                    .map(|request| {
+                        let uri_start = request.method.as_str().len() + 1;
+                        let uri = uri_start..uri_start + request.path.len();
+                        let bytes = target.replay_request(&request);
+                        EncodedRequest {
+                            bytes,
+                            method_uri_start: method_uri_start(request.method, uri.start),
+                            uri_end: uri.end as u32,
+                            timestamp_micros: request.timestamp_micros,
+                        }
+                    })
+                    .collect(),
+                options.order,
+                options.seed.unwrap_or_else(replay_seed),
+            )
+            .with_rate(options.rate)
+            .with_stages(&options.stages);
+            let sequence = if options.timestamps {
+                sequence.with_timestamps(options.speed)
+            } else {
+                sequence
+            };
+            (
+                sequence,
+                filtered,
+                skipped_methods,
+                options.rate,
+                replay_entries,
+                rounds,
+            )
+        }
         RequestInput::Single(options) => {
             let request = ReplayRequest {
                 method: config.method,
@@ -224,6 +305,8 @@ fn run_with_roots(
                 0,
                 Default::default(),
                 None,
+                0,
+                None,
             )
         }
         RequestInput::Default => (
@@ -242,6 +325,8 @@ fn run_with_roots(
             ),
             0,
             Default::default(),
+            None,
+            0,
             None,
         ),
     };
@@ -284,6 +369,11 @@ fn run_with_roots(
     summary.filtered_replay_entries = filtered_replay_entries;
     summary.skipped_access_log_methods = skipped_access_log_methods;
     summary.configured_replay_rate = replay_rate;
+    summary.replay_entries = replay_entries;
+    summary.configured_replay_rounds = configured_replay_rounds;
+    summary.completed_replay_rounds = configured_replay_rounds
+        .filter(|_| replay_entries > 0)
+        .map(|_| summary.completed / replay_entries);
     summary.runtime = finished.duration_since(started);
     match config.limit {
         RunLimit::Duration(duration) => {
@@ -305,16 +395,27 @@ fn run_with_roots(
     Ok(summary)
 }
 
-fn validate_timestamps(requests: &[ReplayRequest]) -> Result<(), RunError> {
+#[derive(Clone, Copy)]
+enum TimestampSource {
+    AccessLog,
+    RequestFile,
+}
+
+fn validate_timestamps(
+    requests: &[ReplayRequest],
+    source: TimestampSource,
+) -> Result<(), RunError> {
+    let invalid = |message: String| match source {
+        TimestampSource::AccessLog => RunError::InvalidAccessLog(message),
+        TimestampSource::RequestFile => RunError::InvalidRequestFile(message),
+    };
     let mut previous = None;
     for request in requests {
         let timestamp = request.timestamp_micros.ok_or_else(|| {
-            RunError::InvalidAccessLog(
-                "timestamp pacing requires a valid timestamp on every replayable line".into(),
-            )
+            invalid("timestamp pacing requires a valid timestamp on every replayable line".into())
         })?;
         if previous.is_some_and(|previous| timestamp < previous) {
-            return Err(RunError::InvalidAccessLog(
+            return Err(invalid(
                 "timestamp pacing requires non-decreasing log timestamps".into(),
             ));
         }
@@ -329,6 +430,7 @@ enum RequestInput {
     Replay(
         Vec<ReplayRequest>,
         ReplayOptions,
+        Option<u64>,
         u64,
         std::collections::BTreeMap<String, u64>,
     ),

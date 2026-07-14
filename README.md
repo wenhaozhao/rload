@@ -154,13 +154,17 @@ once per round and reshuffles before the next round; `random` independently
 samples an entry for every request and can repeat entries. `--seed` makes either
 randomized allocation sequence reproducible. With multiple connections, the
 allocation sequence remains deterministic but network arrival order can vary.
+`--replay-rounds <N>` runs the filtered sequential or shuffle sequence exactly
+`N` complete times and cannot be combined with `--requests`, `--duration`, or
+random replay order.
 
-`--replay-timestamps` preserves gaps between adjacent Nginx access-log
+`--replay-timestamps` preserves gaps between adjacent Nginx access-log or JSONL
 timestamps. The first request is immediate, and `--replay-speed <N>` scales
 subsequent gaps (`2` is twice as fast, `0.5` is half speed). Standard
 second-resolution `$time_local` values and fractional seconds up to microsecond
-precision are accepted. Records with the same timestamp are eligible to send
-without an added gap. Timestamp mode requires sequential access-log replay and
+precision are accepted for access logs; JSONL formats are defined by the
+request schema below. Records with the same timestamp are eligible to send
+without an added gap. Timestamp mode requires sequential replay and
 is mutually exclusive with `--replay-rate`; missing or decreasing timestamps
 are rejected. When the log cycles, the next round begins immediately because
 an interval from the final record back to the first is not present in the log.
@@ -216,8 +220,8 @@ microsecond field and `time`/`_time` as aliases. For formatted string values,
 `timestamp.format` uses strftime/chrono-style placeholders and defaults to the
 Nginx format `%d/%b/%Y:%H:%M:%S %z`, for example
 `03/Jul/2026:08:41:17 +0000`. Fractional seconds can be parsed with `%f`.
-RFC3339 values can be selected explicitly with a schema format such as
-`%Y-%m-%dT%H:%M:%S%z`. Timestamp pacing requires timestamps in every record,
+RFC3339 values can be selected explicitly with the schema format `%+`.
+Timestamp pacing requires timestamps in every record,
 rejects malformed or decreasing values, and uses the same microsecond pacing
 semantics as access-log replay. No separate timestamp-format CLI option is
 provided.

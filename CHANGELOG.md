@@ -2,6 +2,18 @@
 
 All notable changes to rload are documented here.
 
+## [0.2.2] - Unreleased
+
+### Added
+
+- Finite replay cycles with `--replay-rounds` for filtered sequential and
+  shuffle replay.
+- Optional YAML request schemas for nested JSONL field extraction with
+  per-field fallback to the existing top-level extraction rules.
+- JSONL timestamp pacing with schema-defined chrono formats and load-time
+  materialization to microseconds.
+- Configured/completed replay-round fields in text, beauty, and JSON output.
+
 ## [0.2.1] - 2026-07-13
 
 ### Added

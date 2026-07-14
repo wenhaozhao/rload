@@ -294,6 +294,74 @@ fn cli_replays_access_log_requests_in_order() {
 }
 
 #[test]
+fn cli_replays_access_log_for_configured_rounds() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut lines = Vec::new();
+        for _ in 0..4 {
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                let mut byte = [0];
+                stream.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            lines.push(
+                String::from_utf8(request)
+                    .unwrap()
+                    .lines()
+                    .next()
+                    .unwrap()
+                    .to_owned(),
+            );
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        }
+        lines
+    });
+    let path = env::temp_dir().join(format!("rload-rounds-{}.log", std::process::id()));
+    fs::write(
+        &path,
+        "127.0.0.1 - - [date] \"GET /one HTTP/1.1\" 200 0\n\
+         127.0.0.1 - - [date] \"HEAD /two HTTP/1.1\" 200 0\n",
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--connections",
+            "1",
+            "--access-log",
+            path.to_str().unwrap(),
+            "--replay-rounds",
+            "2",
+            "--replay-stages",
+            "1ms:10000",
+            &format!("http://{address}/"),
+        ])
+        .output()
+        .unwrap();
+    fs::remove_file(path).unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        server.join().unwrap(),
+        [
+            "GET /one HTTP/1.1",
+            "HEAD /two HTTP/1.1",
+            "GET /one HTTP/1.1",
+            "HEAD /two HTTP/1.1",
+        ]
+    );
+}
+
+#[test]
 fn cli_skips_unsupported_access_log_methods_and_reports_them() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
@@ -563,6 +631,73 @@ fn cli_replays_access_log_with_scaled_timestamp_gaps() {
 }
 
 #[test]
+fn cli_replays_jsonl_with_schema_timestamp_gaps() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut arrivals = Vec::new();
+        for _ in 0..2 {
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                let mut byte = [0];
+                stream.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            arrivals.push(Instant::now());
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        }
+        arrivals
+    });
+    let suffix = std::process::id();
+    let path = env::temp_dir().join(format!("rload-timestamp-{suffix}.jsonl"));
+    let schema = env::temp_dir().join(format!("rload-timestamp-schema-{suffix}.yaml"));
+    fs::write(
+        &path,
+        "{\"uri\":\"/one\",\"event\":{\"at\":\"2026-07-03T08:41:17.000Z\"}}\n\
+         {\"uri\":\"/two\",\"event\":{\"at\":\"2026-07-03T08:41:17.200Z\"}}\n",
+    )
+    .unwrap();
+    fs::write(
+        &schema,
+        "schema_version: 1\nfields:\n  timestamp:\n    path: event.at\n    format: '%+'\n",
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--connections",
+            "1",
+            "--request-file",
+            path.to_str().unwrap(),
+            "--request-schema",
+            schema.to_str().unwrap(),
+            "--replay-rounds",
+            "1",
+            "--replay-timestamps",
+            "--replay-speed",
+            "2",
+            &format!("http://{address}/"),
+        ])
+        .output()
+        .unwrap();
+    fs::remove_file(path).unwrap();
+    fs::remove_file(schema).unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let arrivals = server.join().unwrap();
+    let gap = arrivals[1].duration_since(arrivals[0]);
+    assert!(gap >= Duration::from_millis(80), "gap: {gap:?}");
+    assert!(gap < Duration::from_millis(500), "gap: {gap:?}");
+}
+
+#[test]
 fn cli_rejects_invalid_timestamp_replay_combinations() {
     let path = env::temp_dir().join(format!(
         "rload-timestamp-invalid-{}.log",
@@ -736,6 +871,142 @@ fn cli_replays_jsonl_post_with_headers_and_body() {
 }
 
 #[test]
+fn cli_extracts_nested_jsonl_fields_with_partial_schema_fallback() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = Vec::new();
+        while !request.ends_with(b"\r\n\r\n") {
+            let mut byte = [0];
+            stream.read_exact(&mut byte).unwrap();
+            request.push(byte[0]);
+        }
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+            .unwrap();
+        String::from_utf8(request).unwrap()
+    });
+    let suffix = std::process::id();
+    let request_path = env::temp_dir().join(format!("rload-schema-request-{suffix}.jsonl"));
+    let schema_path = env::temp_dir().join(format!("rload-schema-{suffix}.yaml"));
+    fs::write(
+        &request_path,
+        r#"{"method":"POST","request":{"path":"/nested"},"args":"a=1"}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        &schema_path,
+        "schema_version: 1\nfields:\n  uri:\n    path: request.path\n",
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--requests",
+            "1",
+            "--request-file",
+            request_path.to_str().unwrap(),
+            "--request-schema",
+            schema_path.to_str().unwrap(),
+            &format!("http://{address}/"),
+        ])
+        .output()
+        .unwrap();
+    fs::remove_file(request_path).unwrap();
+    fs::remove_file(schema_path).unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        server
+            .join()
+            .unwrap()
+            .starts_with("POST /nested?a=1 HTTP/1.1\r\n")
+    );
+}
+
+#[test]
+fn cli_replays_the_filtered_sequence_for_configured_rounds() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request_lines = Vec::new();
+        for _ in 0..4 {
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                let mut byte = [0];
+                stream.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            request_lines.push(
+                String::from_utf8(request)
+                    .unwrap()
+                    .lines()
+                    .next()
+                    .unwrap()
+                    .to_owned(),
+            );
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        }
+        request_lines
+    });
+    let path = env::temp_dir().join(format!("rload-rounds-{}.jsonl", std::process::id()));
+    fs::write(
+        &path,
+        "{\"uri\":\"/one\"}\n{\"uri\":\"/filtered\"}\n{\"uri\":\"/two\"}\n",
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--connections",
+            "1",
+            "--request-file",
+            path.to_str().unwrap(),
+            "--replay-rounds",
+            "2",
+            "--replay-order",
+            "shuffle",
+            "--seed",
+            "42",
+            "--allowed-uris",
+            "/one,/two",
+            "--replay-rate",
+            "10000",
+            "--output-format",
+            "json",
+            &format!("http://{address}/"),
+        ])
+        .output()
+        .unwrap();
+    fs::remove_file(path).unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let request_lines = server.join().unwrap();
+    for round in request_lines.chunks_exact(2) {
+        let mut round = round.to_vec();
+        round.sort();
+        assert_eq!(round, ["GET /one HTTP/1.1", "GET /two HTTP/1.1"]);
+    }
+    let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["summary"]["completed_requests"], 4);
+    assert_eq!(result["replay"]["configured_rounds"], 2);
+    assert_eq!(result["replay"]["completed_rounds"], 2);
+}
+
+#[test]
 fn cli_rejects_multiple_replay_inputs() {
     let output = Command::new(env!("CARGO_BIN_EXE_rload"))
         .args([
@@ -754,6 +1025,44 @@ fn cli_rejects_multiple_replay_inputs() {
             .unwrap()
             .contains("cannot be used together")
     );
+}
+
+#[test]
+fn cli_rejects_invalid_schema_and_round_combinations() {
+    for arguments in [
+        vec!["--request-schema", "schema.yaml", "http://localhost/"],
+        vec![
+            "--request-file",
+            "requests.jsonl",
+            "--replay-timestamps",
+            "http://localhost/",
+        ],
+        vec![
+            "--request-file",
+            "requests.jsonl",
+            "--replay-rounds",
+            "2",
+            "--replay-order",
+            "random",
+            "http://localhost/",
+        ],
+        vec![
+            "--request-file",
+            "requests.jsonl",
+            "--replay-rounds",
+            "2",
+            "--requests",
+            "10",
+            "http://localhost/",
+        ],
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+            .args(arguments)
+            .output()
+            .unwrap();
+
+        assert!(!output.status.success());
+    }
 }
 
 #[test]
