@@ -172,13 +172,13 @@ fn timestamp_replay_reconnects_when_server_closes_an_idle_paced_connection() {
     let server = thread::spawn(move || {
         let (mut immediate, _) = listener.accept().unwrap();
         let (idle, _) = listener.accept().unwrap();
+        let idle_closed_at = Instant::now();
+        drop(idle);
 
         read_request_head(&mut immediate).unwrap();
         immediate
             .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
             .unwrap();
-        let idle_closed_at = Instant::now();
-        drop(idle);
 
         let (mut reconnected, _) = listener.accept().unwrap();
         let reconnect_delay = idle_closed_at.elapsed();
@@ -224,6 +224,10 @@ fn timestamp_replay_reconnects_when_server_closes_an_idle_paced_connection() {
     assert!(
         reconnect_delay >= Duration::from_millis(150),
         "reconnected before the pacing deadline: {reconnect_delay:?}"
+    );
+    assert!(
+        reconnect_delay < Duration::from_millis(500),
+        "reconnected too late after the pacing deadline: {reconnect_delay:?}"
     );
 }
 

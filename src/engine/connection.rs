@@ -354,10 +354,15 @@ impl Connection {
         &mut self,
         registry: &Registry,
     ) -> Result<bool, RunError> {
-        if !self.awaiting_pace || self.started.is_some() {
+        if self.started.is_some()
+            || self
+                .not_before
+                .is_none_or(|not_before| Instant::now() >= not_before)
+        {
             return Ok(false);
         }
         registry.deregister(self.stream.socket_mut())?;
+        self.awaiting_pace = true;
         self.reconnect_at_pace = true;
         self.timer_generation += 1;
         Ok(true)
