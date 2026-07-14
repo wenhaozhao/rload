@@ -793,7 +793,7 @@ fn print_help() {
     println!("      --replay-order <ORDER>  sequential, shuffle, or random [default: sequential]");
     println!("      --seed <N>       Reproducible seed for shuffle or random replay");
     println!("      --replay-rate <RPS>  Global replay request rate");
-    println!("      --replay-timestamps  Pace access-log replay by timestamps");
+    println!("      --replay-timestamps  Pace access-log or JSONL replay by timestamps");
     println!("      --replay-speed <N>   Timestamp playback multiplier [default: 1.0]");
     println!("      --replay-stages <D:R,...>  Timed replay-rate stages");
     println!("      --replay-rounds <N>  Replay the filtered sequence N complete times");

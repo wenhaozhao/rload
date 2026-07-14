@@ -51,7 +51,7 @@ result is intentionally called out rather than rounded into a pass.
 
 ### Functional coverage
 
-| Capability | wrk 4.2.0 | rload 0.2.1 development |
+| Capability | wrk 4.2.0 | rload 0.2.2 |
 |---|---|---|
 | HTTP/1.1 static request load | Yes | Yes |
 | HTTP and HTTPS with connection reuse | Yes | Yes, including TLS verification and SNI |
@@ -163,7 +163,8 @@ timestamps. The first request is immediate, and `--replay-speed <N>` scales
 subsequent gaps (`2` is twice as fast, `0.5` is half speed). Standard
 second-resolution `$time_local` values and fractional seconds up to microsecond
 precision are accepted for access logs; JSONL formats are defined by the
-request schema below. Records with the same timestamp are eligible to send
+request schema below, and JSONL timestamp pacing requires
+`--request-schema <FILE>`. Records with the same timestamp are eligible to send
 without an added gap. Timestamp mode requires sequential replay and
 is mutually exclusive with `--replay-rate`; missing or decreasing timestamps
 are rejected. When the log cycles, the next round begins immediately because
@@ -180,9 +181,9 @@ selection and with either replay input format. They are mutually exclusive with
 
 JSONL replay accepts an optional schema file for extracting fields from nested
 records. The schema changes extraction paths only; it does not change existing
-method, URI, header, body, query-string, or validation rules. Every mapping is
-optional. When a mapping is omitted, rload uses the current top-level JSONL
-field extraction for that field.
+method, URI, header, body, query-string, or validation rules. The `fields`
+object and every mapping in it are optional. When a mapping is omitted, rload
+uses the current top-level JSONL field extraction for that field.
 
 ```yaml
 schema_version: 1
@@ -222,10 +223,11 @@ specified, rload accepts both the Nginx format `%d/%b/%Y:%H:%M:%S %z` (for
 example `03/Jul/2026:08:41:17 +0000`) and RFC3339 (for example
 `2026-07-03T08:41:17Z`). A format can be specified explicitly; fractional
 seconds can be parsed with `%f`, and RFC3339 can be selected with `%+`.
-Timestamp pacing requires timestamps in every record,
-rejects malformed or decreasing values, and uses the same microsecond pacing
-semantics as access-log replay. No separate timestamp-format CLI option is
-provided.
+JSONL timestamp pacing requires a request schema even when its timestamp
+mapping is omitted and the default top-level aliases are used. Timestamp pacing
+requires timestamps in every record, rejects malformed or decreasing values,
+and uses the same microsecond pacing semantics as access-log replay. No separate
+timestamp-format CLI option is provided.
 
 ### Machine-readable results
 

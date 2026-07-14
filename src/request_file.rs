@@ -20,6 +20,7 @@ const RFC3339_TIMESTAMP_FORMAT: &str = "%+";
 #[serde(deny_unknown_fields)]
 struct RequestSchema {
     schema_version: u64,
+    #[serde(default)]
     fields: SchemaFields,
 }
 
@@ -704,5 +705,13 @@ mod tests {
 
         assert!(error.to_string().contains("expected format `%+`"));
         assert!(!error.to_string().contains("expected Nginx or RFC3339"));
+    }
+
+    #[test]
+    fn schema_fields_container_defaults_to_empty() {
+        let schema: RequestSchema = serde_yaml::from_str("schema_version: 1\n").unwrap();
+
+        assert!(schema.fields.method.is_none());
+        assert!(schema.fields.timestamp.is_none());
     }
 }
