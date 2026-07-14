@@ -125,11 +125,12 @@ behavior.*
      duration/request limits, sequential/shuffle/random order, `--seed`, and
      all pacing modes. Report configured and completed rounds where known.
   2. **JSONL timestamp pacing**: Allow `--replay-timestamps` with
-     `--request-file`. Read `timestamp_micros` as the canonical field and
-     accept `time` and `_time` as aliases. Parse the default RFC3339 format,
-     such as `2026-07-03T08:41:17Z`, preserving fractional-second precision.
-     Define alias precedence and reject malformed, missing, or decreasing
-     timestamps in timestamp mode.
+     `--request-file` and a schema-defined timestamp format. Read
+     `timestamp_micros` as the canonical field and accept `time` and `_time`
+     as aliases. The schema supplies a strftime/chrono-style format (default
+     Nginx format: `%d/%b/%Y:%H:%M:%S %z`), preserving fractional-second
+     precision when requested. Define alias precedence and reject malformed,
+     missing, or decreasing timestamps in timestamp mode.
   3. **Shared pacing validation**: Reuse access-log timestamp semantics for
      JSONL, including `--replay-speed`, sequential-order requirements, mutual
      exclusion with `--replay-rate`/`--replay-stages`, and zero delay at a
@@ -138,6 +139,10 @@ behavior.*
      retain the existing method/args defaults, document the timestamp schema,
      and add parser, pacing, CLI, compatibility, and three-way benchmark
      regressions for both replay sources.
+  5. **Schema-driven JSONL extraction**: Add an optional schema file that maps
+     standard request fields and timestamp fields to nested JSON paths. The
+     schema owns timestamp format configuration; no timestamp-format CLI
+     option is introduced.
 
 ---
 

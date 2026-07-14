@@ -95,10 +95,13 @@ bring timestamp pacing to JSONL request files.
    traversal of the filtered sequence; require a positive integer, define its
    interaction with duration/request limits and all pacing/order modes, and
    report configured/completed rounds without changing defaults.
-2. Permit `--replay-timestamps` with `--request-file`. Use `timestamp_micros`
-   as the canonical JSONL field, with `time` and `_time` aliases. Parse the
-   default RFC3339 form (`2026-07-03T08:41:17Z`) with fractional seconds and
-   normalize to the existing microsecond internal representation.
+2. Permit `--replay-timestamps` with `--request-file` and require the JSONL
+   schema to define the timestamp format. Use `timestamp_micros` as the
+   canonical field, with `time` and `_time` aliases. The schema format uses
+   strftime/chrono-style placeholders and defaults to the Nginx format
+   `%d/%b/%Y:%H:%M:%S %z`; fractional seconds are supported. Normalize all
+   parsed values to the existing microsecond representation. No separate
+   timestamp-format CLI option will be added.
 3. Define alias precedence and validation: canonical `timestamp_micros` wins;
    conflicting aliases are rejected, malformed or missing timestamps in
    timestamp mode are rejected, and timestamps must be non-decreasing.
@@ -109,8 +112,11 @@ bring timestamp pacing to JSONL request files.
    defaults to GET, existing `args` joining rules) and update README,
    README.zh-cn, CLI help, schema notes, and changelog.
 6. Add parser, pacing, CLI, compatibility, and benchmark regressions covering
- both replay sources and deterministic finite-cycle counts. Run Linux,
+   both replay sources and deterministic finite-cycle counts. Run Linux,
    macOS, and Windows CI plus the three-way benchmark gate before release.
+7. Add an optional schema file for nested JSONL field mappings. The schema
+   owns timestamp format configuration; do not add a separate timestamp-format
+   CLI option.
 
 ## Deferred follow-up work
 
