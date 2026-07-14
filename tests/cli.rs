@@ -735,11 +735,9 @@ fn cli_replays_jsonl_default_timestamps_without_schema() {
             "1",
             "--request-file",
             path.to_str().unwrap(),
-            "--replay-rounds",
-            "1",
-            "--replay-timestamps",
-            "--replay-speed",
+            "--requests",
             "2",
+            "--replay-timestamps",
             &format!("http://{address}/"),
         ])
         .output()
@@ -753,8 +751,8 @@ fn cli_replays_jsonl_default_timestamps_without_schema() {
     );
     let arrivals = server.join().unwrap();
     let gap = arrivals[1].duration_since(arrivals[0]);
-    assert!(gap >= Duration::from_millis(80), "gap: {gap:?}");
-    assert!(gap < Duration::from_millis(500), "gap: {gap:?}");
+    assert!(gap >= Duration::from_millis(180), "gap: {gap:?}");
+    assert!(gap < Duration::from_millis(700), "gap: {gap:?}");
 }
 
 #[test]
@@ -793,6 +791,36 @@ fn cli_rejects_invalid_timestamp_replay_combinations() {
     fs::remove_file(path).unwrap();
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("valid timestamp"));
+
+    let request_file = env::temp_dir().join(format!(
+        "rload-timestamp-invalid-{}.jsonl",
+        std::process::id()
+    ));
+    fs::write(
+        &request_file,
+        "{\"uri\":\"/\",\"time\":\"2026-07-03T08:41:17Z\"}\n",
+    )
+    .unwrap();
+    for arguments in [
+        vec!["--replay-timestamps", "--replay-rate", "1"],
+        vec!["--replay-rate", "1", "--replay-timestamps"],
+        vec!["--replay-timestamps", "--replay-order", "shuffle"],
+        vec!["--replay-order", "shuffle", "--replay-timestamps"],
+        vec!["--replay-timestamps", "--replay-stages", "1s:10"],
+        vec!["--replay-stages", "1s:10", "--replay-timestamps"],
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+            .args(arguments)
+            .args([
+                "--request-file",
+                request_file.to_str().unwrap(),
+                "http://127.0.0.1:1/",
+            ])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+    }
+    fs::remove_file(request_file).unwrap();
 }
 
 #[test]
