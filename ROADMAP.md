@@ -177,3 +177,21 @@ behavior.*
   1. **High-Performance Terminal UI (TUI)**: Build an interactive console UI (similar to `oha`) displaying live latency histograms, real-time waveform charts, and connection statistics.
   2. **Dynamic Target Autopilot (Target Inference)**: Automatically infer `$scheme` and `$host` headers directly from replayed logs, allowing dynamic dispatching across multiple targets in mesh networks instead of restricting load to a single target URL.
   3. **Web-Based Case Configurator**: Deliver an optional, lightweight browser-based debugger to visually construct YAML configs, pre-check log format compatibility, and visualize historical benchmark comparisons.
+
+### Future candidate: Scripted Request/Response Hooks
+
+Provide an optional scripting language for workload preparation and result
+processing without placing an interpreter on the request/response hot path:
+
+```text
+request-prepare(request) -> [pre-script filter] -> core ->
+response-result(response) -> [post-script filter]
+```
+
+This feature is explicitly performance-gated and is not scheduled for the
+0.2.x or 0.3.x release lines. The design must provide a zero-cost disabled
+path, bounded pre-processing queues or precomputed request data, isolated
+post-processing, and benchmark evidence showing no regression in unscripted
+mode. The script runtime, sandboxing, failure policy, determinism, and whether
+hooks run per request or in batches require a separate architecture and
+security review before implementation.

@@ -49,6 +49,12 @@
   execution, and present live/final statistics without moving load-generation
   logic into the UI. The CLI and engine must remain usable without GUI
   dependencies.
+- Scripted request/response hooks for request preparation and response result
+  processing. The intended pipeline is `request -> pre-script filter -> core ->
+  response -> post-script filter`. This remains a future candidate until a
+  runtime, sandbox, failure model, and isolation design can guarantee a
+  zero-cost disabled path and no performance regression for unscripted loads.
+  It is not planned for v0.2.2 or v0.3.0.
 
 ## v0.2.1 planned work
 
