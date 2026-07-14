@@ -148,6 +148,12 @@ behavior.*
      `--replay-timestamps`.
      The schema owns timestamp format configuration; no timestamp-format CLI
      option is introduced.
+  6. **Load-time materialization**: Adopt the load-time expansion design as a
+     hard performance requirement. Parse and compile schema paths, resolve
+     types, and parse timestamps while loading JSONL; materialize every record
+     into the existing `ReplayRequest` representation. The request/response
+     hot path must not retain dynamic JSON values, resolve schema paths, or
+     parse timestamp strings.
 
 ---
 

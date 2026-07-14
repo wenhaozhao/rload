@@ -128,6 +128,10 @@ bring timestamp pacing to JSONL request files.
    optional for ordinary replay but is required when timestamp pacing is
    enabled. The schema owns timestamp format configuration; do not add a
    separate timestamp-format CLI option.
+8. Enforce load-time materialization: compile schema paths and parse all field
+   values, including timestamps, while loading JSONL, then store the existing
+   `ReplayRequest` objects. No dynamic JSON traversal, schema lookup, or
+   timestamp string parsing is permitted in the request/response hot path.
 
 ## Deferred follow-up work
 
