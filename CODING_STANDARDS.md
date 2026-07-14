@@ -14,7 +14,8 @@ option system, not only as an isolated parser branch.
 - Identify every mode and input to which the option applies, including static
   requests, access-log replay, and JSONL replay.
 - Verify valid combinations with related options and confirm that argument
-  order does not change the result.
+  order does not change the result, unless order-dependent semantics are an
+  explicit, documented part of the option design.
 - Avoid hidden prerequisites. If a prerequisite is inherent, validate it before
   file or network I/O and state it in `--help`, error output, and the README.
 - Confirm that CLI configuration and the corresponding public API express the
@@ -28,8 +29,9 @@ option system, not only as an isolated parser branch.
   requires a documented difference.
 - Keep `--help`, validation errors, README examples, structured output, and
   public configuration types synchronized with the implementation.
-- Preserve existing option semantics and parser-stable default output unless a
-  compatibility change is explicitly planned and documented.
+- Preserve existing option semantics, human-readable parser anchors, structured
+  output schemas, exit codes, and stdout/stderr routing unless a compatibility
+  change is explicitly planned and documented.
 
 ### Mutual exclusion
 
@@ -44,12 +46,15 @@ option system, not only as an isolated parser branch.
 
 ### Required tests
 
-Each CLI option change must include, as applicable:
+Related or adjacent options are those that share an input mode, resource,
+termination condition, ordering rule, pacing mechanism, or output mode. For
+each CLI change, the review must list the applicable categories and include:
 
 - one acceptance test for the option's standalone/default behavior;
 - acceptance tests for supported combinations with adjacent options;
 - rejection tests for each mutual-exclusion or prerequisite rule;
-- coverage for every supported input mode;
+- coverage for every input mode declared applicable during the composability
+  review;
 - assertions that help text and errors describe the actual behavior; and
 - API-level validation tests when the behavior is available outside the CLI.
 

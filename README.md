@@ -1,5 +1,8 @@
 # rload
 
+Contributions and reviews must follow [CODING_STANDARDS.md](CODING_STANDARDS.md),
+including the CLI option interaction checklist.
+
 English | [中文](./README.zh-cn.md)
 
 `rload` is a Rust HTTP load generator with wrk-compatible CLI semantics,
