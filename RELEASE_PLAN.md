@@ -86,6 +86,32 @@ Implementation and the local three-way validation gate were completed on
   `--output-format json` unchanged. Add golden and CLI tests for the beauty
   format without changing the benchmark execution path.
 
+## v0.2.2 planned work
+
+The next replay-focused release will make finite replay cycles explicit and
+bring timestamp pacing to JSONL request files.
+
+1. Add `--replay-rounds <N>` for finite replay inputs. A round is one complete
+   traversal of the filtered sequence; require a positive integer, define its
+   interaction with duration/request limits and all pacing/order modes, and
+   report configured/completed rounds without changing defaults.
+2. Permit `--replay-timestamps` with `--request-file`. Use `timestamp_micros`
+   as the canonical JSONL field, with `time` and `_time` aliases. Parse the
+   default RFC3339 form (`2026-07-03T08:41:17Z`) with fractional seconds and
+   normalize to the existing microsecond internal representation.
+3. Define alias precedence and validation: canonical `timestamp_micros` wins;
+   conflicting aliases are rejected, malformed or missing timestamps in
+   timestamp mode are rejected, and timestamps must be non-decreasing.
+4. Share existing timestamp semantics: `--replay-speed` applies, sequential
+   order is required, timestamp pacing is mutually exclusive with fixed-rate
+   and stage pacing, and no synthetic delay is added between cycles.
+5. Preserve tolerant JSONL behavior (unknown fields ignored, missing method
+   defaults to GET, existing `args` joining rules) and update README,
+   README.zh-cn, CLI help, schema notes, and changelog.
+6. Add parser, pacing, CLI, compatibility, and benchmark regressions covering
+ both replay sources and deterministic finite-cycle counts. Run Linux,
+   macOS, and Windows CI plus the three-way benchmark gate before release.
+
 ## Deferred follow-up work
 
 - Re-run the wrk accuracy matrix on a dedicated or separate-server host. This is

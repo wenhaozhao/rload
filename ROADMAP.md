@@ -113,6 +113,32 @@ human-readable reporting without changing benchmark defaults.*
   3. **[x] Optional Beauty Output**: Add `--output-beauty` while preserving the
      default text format and JSON schema version 1.
 
+### Maintenance: v0.2.2 - Replay Cycles and JSONL Timestamp Pacing [Planned]
+*Focus: Make finite replay workloads explicit and extend timestamp pacing from
+Nginx access logs to structured JSONL exports without changing default replay
+behavior.*
+
+* **Key Deliverables**:
+  1. **Replay cycle limit**: Add `--replay-rounds <N>` for replay inputs. One
+     round means one complete traversal of the filtered request sequence;
+     `N` must be a positive integer. Define and test its interaction with
+     duration/request limits, sequential/shuffle/random order, `--seed`, and
+     all pacing modes. Report configured and completed rounds where known.
+  2. **JSONL timestamp pacing**: Allow `--replay-timestamps` with
+     `--request-file`. Read `timestamp_micros` as the canonical field and
+     accept `time` and `_time` as aliases. Parse the default RFC3339 format,
+     such as `2026-07-03T08:41:17Z`, preserving fractional-second precision.
+     Define alias precedence and reject malformed, missing, or decreasing
+     timestamps in timestamp mode.
+  3. **Shared pacing validation**: Reuse access-log timestamp semantics for
+     JSONL, including `--replay-speed`, sequential-order requirements, mutual
+     exclusion with `--replay-rate`/`--replay-stages`, and zero delay at a
+     cycle boundary. Preserve ordinary replay behavior when pacing is absent.
+  4. **Compatibility and validation**: Keep unknown JSONL fields ignored,
+     retain the existing method/args defaults, document the timestamp schema,
+     and add parser, pacing, CLI, compatibility, and three-way benchmark
+     regressions for both replay sources.
+
 ---
 
 ### Phase 2: v0.3.0 - Declarative Tests and CI Gating
