@@ -180,4 +180,7 @@ Required Actions secrets:
 - `HOMEBREW_TAP_TOKEN`: fine-grained token with Contents read/write access to
   `wenhaozhao/homebrew-rload`.
 
-The workflow can also be started manually with a release tag input.
+The workflow can also be started manually with a release tag input. Each
+release also attaches precompiled archives for Linux x86_64, macOS arm64, and
+Windows x86_64, together with SHA-256 checksum files. The archives contain the
+`rload` executable, README, and license files.
