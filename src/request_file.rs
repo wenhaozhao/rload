@@ -14,6 +14,7 @@ const MAX_LINE_BYTES: u64 = 1024 * 1024;
 const MAX_URI_BYTES: usize = 8 * 1024;
 const MAX_HEADER_BYTES: usize = 64 * 1024;
 const DEFAULT_TIMESTAMP_FORMAT: &str = "%d/%b/%Y:%H:%M:%S %z";
+const RFC3339_TIMESTAMP_FORMAT: &str = "%+";
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -319,7 +320,7 @@ fn extract_timestamp(
             "time and _time contain conflicting timestamps",
         ));
     }
-    parse_timestamp_value(time.or(alternate), Some(DEFAULT_TIMESTAMP_FORMAT), line)
+    parse_timestamp_value(time.or(alternate), None, line)
 }
 
 fn parse_timestamp_value(
@@ -334,10 +335,14 @@ fn parse_timestamp_value(
             .map(Some)
             .ok_or_else(|| invalid(line, "timestamp_micros must be a signed 64-bit integer")),
         Some(Value::String(value)) => {
-            let format = format.unwrap_or(DEFAULT_TIMESTAMP_FORMAT);
-            DateTime::parse_from_str(value, format)
+            let formats = format
+                .map(|format| vec![format])
+                .unwrap_or_else(|| vec![DEFAULT_TIMESTAMP_FORMAT, RFC3339_TIMESTAMP_FORMAT]);
+            formats
+                .iter()
+                .find_map(|format| DateTime::parse_from_str(value, format).ok())
                 .map(|timestamp| Some(timestamp.timestamp_micros()))
-                .map_err(|error| invalid(line, &format!("invalid timestamp: {error}")))
+                .ok_or_else(|| invalid(line, "invalid timestamp: expected Nginx or RFC3339 format"))
         }
         Some(_) => Err(invalid(line, "timestamp must be an integer or string")),
     }
@@ -648,6 +653,7 @@ mod tests {
     fn materializes_default_and_schema_timestamp_fields_to_micros() {
         let input = br#"{"uri":"/one","timestamp_micros":1000000}
 {"uri":"/two","time":"03/Jul/2026:08:41:17 +0000"}
+{"uri":"/four","time":"2026-07-03T08:41:17Z"}
 "#;
         let requests = read_records(
             &mut std::io::Cursor::new(input),
@@ -659,6 +665,7 @@ mod tests {
         assert_eq!(requests[0].timestamp_micros, Some(1_000_000));
         let expected = requests[1].timestamp_micros;
         assert!(expected.unwrap() > 1_700_000_000_000_000);
+        assert_eq!(requests[2].timestamp_micros, expected);
 
         let schema = CompiledSchema {
             timestamp: Some(CompiledTimestamp {

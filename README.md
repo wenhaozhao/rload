@@ -217,10 +217,11 @@ validation, while an omitted `method` continues to default to `GET`.
 
 The timestamp mapping accepts `timestamp_micros` as the canonical integer
 microsecond field and `time`/`_time` as aliases. For formatted string values,
-`timestamp.format` uses strftime/chrono-style placeholders and defaults to the
-Nginx format `%d/%b/%Y:%H:%M:%S %z`, for example
-`03/Jul/2026:08:41:17 +0000`. Fractional seconds can be parsed with `%f`.
-RFC3339 values can be selected explicitly with the schema format `%+`.
+`timestamp.format` uses strftime/chrono-style placeholders. When no format is
+specified, rload accepts both the Nginx format `%d/%b/%Y:%H:%M:%S %z` (for
+example `03/Jul/2026:08:41:17 +0000`) and RFC3339 (for example
+`2026-07-03T08:41:17Z`). A format can be specified explicitly; fractional
+seconds can be parsed with `%f`, and RFC3339 can be selected with `%+`.
 Timestamp pacing requires timestamps in every record,
 rejects malformed or decreasing values, and uses the same microsecond pacing
 semantics as access-log replay. No separate timestamp-format CLI option is
