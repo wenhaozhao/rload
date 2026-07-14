@@ -722,6 +722,10 @@ fn run_worker(
                     return Err(RunError::Io(error));
                 }
                 summary.socket_errors.connect += 1;
+                if connection.defer_reconnect_until_pace(poll.registry())? {
+                    schedule_pacing(&mut pacing, token, connection);
+                    continue;
+                }
                 connection.retry_address(error, poll.registry(), token)?;
                 schedule_deadline(&mut deadlines, token, connection, timeout);
                 schedule_pacing(&mut pacing, token, connection);
@@ -734,6 +738,10 @@ fn run_worker(
                 }
                 if let Some(error) = connection.take_error()? {
                     summary.socket_errors.connect += 1;
+                    if connection.defer_reconnect_until_pace(poll.registry())? {
+                        schedule_pacing(&mut pacing, token, connection);
+                        continue;
+                    }
                     connection.retry_address(error, poll.registry(), token)?;
                     schedule_deadline(&mut deadlines, token, connection, timeout);
                     schedule_pacing(&mut pacing, token, connection);
@@ -783,6 +791,10 @@ fn run_worker(
                     }
                     Err(RunError::Io(error)) if !connection.has_started() => {
                         summary.socket_errors.connect += 1;
+                        if connection.defer_reconnect_until_pace(poll.registry())? {
+                            schedule_pacing(&mut pacing, token, connection);
+                            continue;
+                        }
                         connection.retry_address(error, poll.registry(), token)?;
                         schedule_deadline(&mut deadlines, token, connection, timeout);
                         schedule_pacing(&mut pacing, token, connection);
@@ -887,7 +899,7 @@ fn run_worker(
                 active -= 1;
                 continue;
             }
-            connection.refresh_interest(poll.registry(), Token(token))?;
+            connection.resume_at_pace(poll.registry(), Token(token))?;
         }
     }
     Ok(summary)

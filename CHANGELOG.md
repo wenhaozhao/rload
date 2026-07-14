@@ -18,6 +18,12 @@ All notable changes to rload are documented here.
   no explicit format is configured.
 - Configured/completed replay-round fields in text, beauty, and JSON output.
 
+### Fixed
+
+- Timestamp-paced connections closed by the server before their scheduled
+  request now reconnect at the pacing deadline instead of failing fixed-count
+  runs or repeatedly reconnecting while idle.
+
 ## [0.2.1] - 2026-07-13
 
 ### Added
