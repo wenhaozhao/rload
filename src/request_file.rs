@@ -335,14 +335,24 @@ fn parse_timestamp_value(
             .map(Some)
             .ok_or_else(|| invalid(line, "timestamp_micros must be a signed 64-bit integer")),
         Some(Value::String(value)) => {
-            let formats = format
-                .map(|format| vec![format])
-                .unwrap_or_else(|| vec![DEFAULT_TIMESTAMP_FORMAT, RFC3339_TIMESTAMP_FORMAT]);
-            formats
-                .iter()
-                .find_map(|format| DateTime::parse_from_str(value, format).ok())
-                .map(|timestamp| Some(timestamp.timestamp_micros()))
-                .ok_or_else(|| invalid(line, "invalid timestamp: expected Nginx or RFC3339 format"))
+            let parsed = format
+                .map(|format| {
+                    DateTime::parse_from_str(value, format)
+                        .map(Some)
+                        .map_err(|_| format!("invalid timestamp: expected format `{format}`"))
+                })
+                .unwrap_or_else(|| {
+                    [DEFAULT_TIMESTAMP_FORMAT, RFC3339_TIMESTAMP_FORMAT]
+                        .iter()
+                        .find_map(|format| DateTime::parse_from_str(value, format).ok())
+                        .map(Some)
+                        .ok_or_else(|| {
+                            "invalid timestamp: expected Nginx or RFC3339 format".to_string()
+                        })
+                });
+            parsed
+                .map(|timestamp| timestamp.map(|timestamp| timestamp.timestamp_micros()))
+                .map_err(|message| invalid(line, &message))
         }
         Some(_) => Err(invalid(line, "timestamp must be an integer or string")),
     }
@@ -685,5 +695,14 @@ mod tests {
         .unwrap();
 
         assert_eq!(requests[0].timestamp_micros, expected);
+    }
+
+    #[test]
+    fn reports_explicit_timestamp_format_in_parse_error() {
+        let error = parse_timestamp_value(Some(&Value::String("not-a-date".into())), Some("%+"), 7)
+            .unwrap_err();
+
+        assert!(error.to_string().contains("expected format `%+`"));
+        assert!(!error.to_string().contains("expected Nginx or RFC3339"));
     }
 }
