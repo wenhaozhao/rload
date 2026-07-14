@@ -42,7 +42,7 @@ Lua 和 LuaJIT 兼容性被明确声明为不在此项目范围内。
 
 ### 功能覆盖范围
 
-| 能力 | wrk 4.2.0 | rload 0.2.1 开发中 |
+| 能力 | wrk 4.2.0 | rload 0.2.2 |
 |---|---|---|
 | HTTP/1.1 静态请求负载 | 支持 | 支持 |
 | 具有连接复用的 HTTP 和 HTTPS | 支持 | 支持，包括 TLS 验证和 SNI |
@@ -101,9 +101,35 @@ cargo run --release -- --duration 30s --request-file ./requests.jsonl \
 
 默认的回放顺序为 `sequential`（顺序）。`--replay-rate <RPS>` 会在所有回放工作线程中应用一个全局请求速率，并报告配置速率和测量速率。`shuffle`（洗牌）在每轮中精确访问每个条目一次，并在下一轮开始前重新洗牌；`random`（随机）在每次请求时独立对一个条目进行抽样，可能导致重复条目。`--seed` 可使任何随机分配序列具有可重现性。在使用多个连接时，分配序列保持确定性，但网络到达顺序可能会有所不同。
 
-`--replay-timestamps` 保留了相邻 Nginx 访问日志时间戳之间的间隔。第一个请求会立即发送，而 `--replay-speed <N>` 会缩放随后的间隔（`2` 表示两倍速，`0.5` 表示半速）。接受标准的秒级分辨率 `$time_local` 值以及最高达到微秒精度的分数秒。具有相同时间戳的记录可以在不增加额外间隔的情况下发送。时间戳模式要求进行顺序访问日志回放，并且与 `--replay-rate` 互斥；缺失或递减的时间戳将被拒绝。当日志循环时，下一轮会立即开始，因为从最后一条记录返回到第一条记录的时间间隔在日志中并不存在。
+`--replay-rounds <N>` 将过滤后的顺序或洗牌序列完整回放 `N` 轮，不能与 `--requests`、`--duration` 或 `random` 回放顺序组合。
+
+`--replay-timestamps` 保留相邻 Nginx 访问日志或 JSONL 时间戳之间的间隔。第一个请求会立即发送，而 `--replay-speed <N>` 会缩放随后的间隔（`2` 表示两倍速，`0.5` 表示半速）。访问日志接受标准 `$time_local` 值以及最高微秒精度的分数秒。JSONL 可以通过可选的 request schema 定义时间格式；未提供 schema 时，从顶层 `timestamp_micros`、`time` 或 `_time` 字段提取，并接受默认 Nginx 与 RFC3339 格式。时间戳模式要求顺序回放，并且与 `--replay-rate` 互斥；缺失或递减的时间戳将被拒绝。循环回放时不会添加输入中不存在的跨轮间隔。
 
 `--replay-stages <DURATION:RPS,...>` 定义了定时速率配置，例如 `--replay-stages 10s:100,5s:1000,10s:100` 表示基线、峰值和恢复三个阶段。阶段转换发生在配置的边界上；在配置结束之后，最后的速率将保持活跃。阶段回放可与顺序、洗牌或随机选择以及任一回放输入格式一起使用。它们与 `--replay-rate` 和 `--replay-timestamps` 互斥。
+
+### JSONL request schema
+
+`--request-schema <FILE>` 为嵌套 JSONL 记录配置字段抽取路径。顶层 `fields` 对象及其中每个映射都是可选的；省略时，该字段继续使用当前顶层字段抽取逻辑。schema 只改变抽取路径，不改变字段默认值或现有校验规则。
+
+```yaml
+schema_version: 1
+fields:
+  method:
+    path: http.request.method
+  uri:
+    path: http.request.path
+  args:
+    path: http.request.query
+  headers:
+    path: http.request.headers
+  body:
+    path: http.request.body
+  timestamp:
+    path: event.timestamp
+    format: "%d/%b/%Y:%H:%M:%S.%f %z"
+```
+
+字段路径使用点分隔对象字段，当前不支持数组索引和表达式。时间格式使用 strftime/chrono 占位符；未指定格式时同时支持 Nginx 格式 `%d/%b/%Y:%H:%M:%S %z` 和 RFC3339（例如 `2026-07-03T08:41:17Z`）。也可以通过 `%+` 显式指定 RFC3339。request schema 仅在需要自定义字段路径或格式时使用。schema 和时间字符串仅在文件加载阶段解析，压测热路径只使用物化后的请求及微秒时间戳。
 
 ### 机器可读的结果
 

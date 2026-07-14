@@ -1,6 +1,6 @@
 [package]
 name = "rload"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 default-run = "rload"
 description = "A Rust HTTP/1.1 load generator with Nginx access-log and JSONL replay"
@@ -18,11 +18,13 @@ name = "rload"
 path = "src/main.rs"
 
 [dependencies]
+chrono = { version = "0.4.42", default-features = false, features = ["std"] }
 hdrhistogram = { version = "7.5.4", default-features = false }
 mio = { version = "1.2.0", features = ["net", "os-poll"] }
 rustls = { version = "0.23.40", default-features = false, features = ["ring", "std", "tls12"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
+serde_yaml = "0.9.34"
 webpki-roots = "1.0.8"
 
 [dev-dependencies]

@@ -4,8 +4,12 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
+use std::{env, fs};
 
-use rload::{Method, RunConfig, RunError, RunLimit, run};
+use rload::{
+    Method, ReplayFilter, ReplayOptions, RequestFileReplayOptions, RunConfig, RunError, RunLimit,
+    run, run_request_file_with_run_options,
+};
 
 fn spawn_server(response: &'static [u8]) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -111,6 +115,120 @@ fn run_reuses_connection_for_multiple_requests() {
     assert_eq!(summary.completed, 2);
     assert_eq!(summary.response_body_bytes, 4);
     server.join().unwrap();
+}
+
+#[test]
+fn request_file_api_accepts_timestamp_replay_without_schema() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        for _ in 0..2 {
+            read_request_head(&mut stream).unwrap();
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        }
+    });
+    let path = env::temp_dir().join(format!(
+        "rload-api-default-timestamp-{}.jsonl",
+        std::process::id()
+    ));
+    fs::write(
+        &path,
+        "{\"uri\":\"/one\",\"timestamp_micros\":1000000}\n\
+         {\"uri\":\"/two\",\"timestamp_micros\":1000001}\n",
+    )
+    .unwrap();
+    let config = RunConfig {
+        url: format!("http://{address}/"),
+        method: Method::Get,
+        limit: RunLimit::Requests(2),
+        connections: 1,
+        threads: 1,
+        timeout: Duration::from_secs(1),
+    };
+    let options = RequestFileReplayOptions {
+        replay: ReplayOptions {
+            timestamps: true,
+            ..ReplayOptions::default()
+        },
+        rounds: None,
+        schema: None,
+    };
+
+    let summary =
+        run_request_file_with_run_options(config, &path, options, ReplayFilter::default()).unwrap();
+    fs::remove_file(path).unwrap();
+    server.join().unwrap();
+
+    assert_eq!(summary.completed, 2);
+}
+
+#[test]
+fn timestamp_replay_reconnects_when_server_closes_an_idle_paced_connection() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut immediate, _) = listener.accept().unwrap();
+        let (idle, _) = listener.accept().unwrap();
+        let idle_closed_at = Instant::now();
+        drop(idle);
+
+        read_request_head(&mut immediate).unwrap();
+        immediate
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+            .unwrap();
+
+        let (mut reconnected, _) = listener.accept().unwrap();
+        let reconnect_delay = idle_closed_at.elapsed();
+        read_request_head(&mut reconnected).unwrap();
+        reconnected
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+            .unwrap();
+        reconnect_delay
+    });
+    let path = env::temp_dir().join(format!(
+        "rload-idle-paced-reconnect-{}.jsonl",
+        std::process::id()
+    ));
+    fs::write(
+        &path,
+        "{\"uri\":\"/one\",\"timestamp_micros\":1000000}\n\
+         {\"uri\":\"/two\",\"timestamp_micros\":2000000}\n",
+    )
+    .unwrap();
+    let config = RunConfig {
+        url: format!("http://{address}/"),
+        method: Method::Get,
+        limit: RunLimit::Requests(2),
+        connections: 2,
+        threads: 1,
+        timeout: Duration::from_secs(1),
+    };
+    let options = RequestFileReplayOptions {
+        replay: ReplayOptions {
+            timestamps: true,
+            ..ReplayOptions::default()
+        },
+        rounds: None,
+        schema: None,
+    };
+
+    let result = run_request_file_with_run_options(config, &path, options, ReplayFilter::default());
+    fs::remove_file(path).unwrap();
+
+    let summary = result.unwrap();
+    let reconnect_delay = server.join().unwrap();
+    assert_eq!(summary.completed, 2);
+    assert!(
+        reconnect_delay >= Duration::from_millis(500),
+        "reconnected before the pacing deadline: {reconnect_delay:?}"
+    );
+    assert!(
+        reconnect_delay < Duration::from_secs(2),
+        "reconnected too late after the pacing deadline: {reconnect_delay:?}"
+    );
 }
 
 #[test]

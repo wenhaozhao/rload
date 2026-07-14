@@ -5,9 +5,9 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 use rload::{
-    MAX_REQUEST_BODY_BYTES, Method, ReplayFilter, ReplayOptions, ReplayOrder, ReplayStage,
-    RequestOptions, RunConfig, RunLimit, RunSummary, run, run_access_log_with_filter,
-    run_request_file_with_filter, run_with_request,
+    MAX_REQUEST_BODY_BYTES, Method, ReplayFilter, ReplayOptions, ReplayOrder, ReplayRunOptions,
+    ReplayStage, RequestFileReplayOptions, RequestOptions, RunConfig, RunLimit, RunSummary, run,
+    run_access_log_with_run_options, run_request_file_with_run_options, run_with_request,
 };
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -37,6 +37,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     let mut url = None;
     let mut access_log = None;
     let mut request_file = None;
+    let mut request_schema = None;
     let mut replay_order = ReplayOrder::Sequential;
     let mut replay_option_was_set = false;
     let mut seed = None;
@@ -45,6 +46,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     let mut replay_speed = 1.0;
     let mut replay_speed_was_set = false;
     let mut replay_stages = Vec::new();
+    let mut replay_rounds = None;
     let mut output_format = OutputFormat::Text;
     let mut output_beauty = false;
     let mut method = Method::Get;
@@ -87,6 +89,12 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                 request_file = Some(
                     args.next()
                         .ok_or_else(|| "--request-file requires a file path".to_owned())?,
+                );
+            }
+            "--request-schema" => {
+                request_schema = Some(
+                    args.next()
+                        .ok_or_else(|| "--request-schema requires a file path".to_owned())?,
                 );
             }
             "--replay-order" => {
@@ -146,6 +154,18 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                     .next()
                     .ok_or_else(|| "--replay-stages requires a value".to_owned())?;
                 replay_stages = parse_replay_stages(&value)?;
+            }
+            "--replay-rounds" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| "--replay-rounds requires a value".to_owned())?;
+                let rounds = value
+                    .parse::<u64>()
+                    .map_err(|_| format!("invalid replay round count: {value}"))?;
+                if rounds == 0 {
+                    return Err("replay round count must be greater than zero".into());
+                }
+                replay_rounds = Some(rounds);
             }
             "--output-format" => {
                 let value = args
@@ -279,6 +299,18 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     if access_log.is_some() && request_file.is_some() {
         return Err("--access-log and --request-file cannot be used together".into());
     }
+    if request_schema.is_some() && request_file.is_none() {
+        return Err("--request-schema requires --request-file".into());
+    }
+    if replay_rounds.is_some() && access_log.is_none() && request_file.is_none() {
+        return Err("--replay-rounds requires --access-log or --request-file".into());
+    }
+    if replay_rounds.is_some() && (requests_were_set || duration.is_some()) {
+        return Err("--replay-rounds cannot be combined with --requests or --duration".into());
+    }
+    if replay_rounds.is_some() && replay_order == ReplayOrder::Random {
+        return Err("--replay-rounds cannot be combined with random replay order".into());
+    }
     let ordinary_request_was_set =
         method_was_set || !headers.is_empty() || !data.is_empty() || data_binary.is_some();
     if ordinary_request_was_set && (access_log.is_some() || request_file.is_some()) {
@@ -304,8 +336,8 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     if replay_rate.is_some() && access_log.is_none() && request_file.is_none() {
         return Err("--replay-rate requires --access-log or --request-file".into());
     }
-    if replay_timestamps && access_log.is_none() {
-        return Err("--replay-timestamps requires --access-log".into());
+    if replay_timestamps && access_log.is_none() && request_file.is_none() {
+        return Err("--replay-timestamps requires --access-log or --request-file".into());
     }
     if replay_speed_was_set && !replay_timestamps {
         return Err("--replay-speed requires --replay-timestamps".into());
@@ -359,12 +391,25 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
         allowed_uris,
     };
     let summary = match (access_log, request_file) {
-        (Some(path), None) => {
-            run_access_log_with_filter(config, path, replay_options.clone(), replay_filter)
-        }
-        (None, Some(path)) => {
-            run_request_file_with_filter(config, path, replay_options.clone(), replay_filter)
-        }
+        (Some(path), None) => run_access_log_with_run_options(
+            config,
+            path,
+            ReplayRunOptions {
+                replay: replay_options.clone(),
+                rounds: replay_rounds,
+            },
+            replay_filter,
+        ),
+        (None, Some(path)) => run_request_file_with_run_options(
+            config,
+            path,
+            RequestFileReplayOptions {
+                replay: replay_options.clone(),
+                rounds: replay_rounds,
+                schema: request_schema.map(Into::into),
+            },
+            replay_filter,
+        ),
         (None, None) if ordinary_request_was_set => {
             run_with_request(config, RequestOptions { headers, body })
         }
@@ -415,6 +460,13 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     println!("Drain time: {:.2?}", summary.drain_runtime);
     if replay_options.timestamps {
         println!("Timestamp replay speed: {:.3}x", replay_options.speed);
+    }
+    if let Some(rounds) = summary.configured_replay_rounds {
+        println!("Configured replay rounds: {rounds}");
+        println!(
+            "Completed replay rounds: {}",
+            summary.completed_replay_rounds.unwrap_or_default()
+        );
     }
     if !replay_options.stages.is_empty() {
         let profile = replay_options
@@ -568,6 +620,9 @@ fn print_json(
             "filtered_entries": whitelist_was_set.then_some(summary.filtered_replay_entries),
             "skipped_entries": skipped_total,
             "skipped_methods": summary.skipped_access_log_methods,
+            "entries": summary.replay_entries,
+            "configured_rounds": summary.configured_replay_rounds,
+            "completed_rounds": summary.completed_replay_rounds,
         },
     });
     println!(
@@ -643,11 +698,19 @@ fn print_beauty(summary: &RunSummary, replay_options: &ReplayOptions, whitelist_
         || summary.configured_replay_rate.is_some()
         || whitelist_was_set
         || !summary.skipped_access_log_methods.is_empty()
+        || summary.configured_replay_rounds.is_some()
     {
         println!();
         println!("Replay");
         if replay_options.timestamps {
             println!("  Timestamp speed      {:>11.3}x", replay_options.speed);
+        }
+        if let Some(rounds) = summary.configured_replay_rounds {
+            println!("  Configured rounds     {:>12}", rounds);
+            println!(
+                "  Completed rounds      {:>12}",
+                summary.completed_replay_rounds.unwrap_or_default()
+            );
         }
         if !replay_options.stages.is_empty() {
             let profile = replay_options
@@ -723,12 +786,14 @@ fn print_help() {
     println!("      --latency      Print latency distribution (always enabled)");
     println!("      --access-log <FILE>  Replay GET/HEAD requests from an Nginx access log");
     println!("      --request-file <FILE>  Replay structured requests from a JSONL file");
+    println!("      --request-schema <FILE>  Map JSONL fields with a YAML schema");
     println!("      --replay-order <ORDER>  sequential, shuffle, or random [default: sequential]");
     println!("      --seed <N>       Reproducible seed for shuffle or random replay");
     println!("      --replay-rate <RPS>  Global replay request rate");
-    println!("      --replay-timestamps  Pace access-log replay by timestamps");
+    println!("      --replay-timestamps  Pace access-log or JSONL replay by timestamps");
     println!("      --replay-speed <N>   Timestamp playback multiplier [default: 1.0]");
     println!("      --replay-stages <D:R,...>  Timed replay-rate stages");
+    println!("      --replay-rounds <N>  Replay the filtered sequence N complete times");
     println!("      --output-format <FORMAT>  text or json [default: text]");
     println!("      --output-beauty  Print a sectioned human-readable result");
     println!("  -X, --request <METHOD>  HTTP method for an ordinary request");

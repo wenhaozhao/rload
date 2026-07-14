@@ -2,6 +2,28 @@
 
 All notable changes to rload are documented here.
 
+## [0.2.2] - 2026-07-14
+
+### Added
+
+- Finite replay cycles with `--replay-rounds` for filtered sequential and
+  shuffle replay.
+- Optional YAML request schemas for nested JSONL field extraction with
+  per-field fallback to the existing top-level extraction rules.
+- JSONL timestamp pacing with schema-defined chrono formats and load-time
+  materialization to microseconds.
+- Schema-free JSONL timestamp pacing through the default top-level timestamp
+  aliases and formats.
+- Default JSONL timestamp parsing accepts both Nginx and RFC3339 values when
+  no explicit format is configured.
+- Configured/completed replay-round fields in text, beauty, and JSON output.
+
+### Fixed
+
+- Timestamp-paced connections closed by the server before their scheduled
+  request now reconnect at the pacing deadline instead of failing fixed-count
+  runs or repeatedly reconnecting while idle.
+
 ## [0.2.1] - 2026-07-13
 
 ### Added

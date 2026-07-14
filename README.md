@@ -1,5 +1,8 @@
 # rload
 
+Contributions and reviews must follow [CODING_STANDARDS.md](CODING_STANDARDS.md),
+including the CLI option interaction checklist.
+
 English | [中文](./README.zh-cn.md)
 
 `rload` is a Rust HTTP load generator with wrk-compatible CLI semantics,
@@ -51,7 +54,7 @@ result is intentionally called out rather than rounded into a pass.
 
 ### Functional coverage
 
-| Capability | wrk 4.2.0 | rload 0.2.1 development |
+| Capability | wrk 4.2.0 | rload 0.2.2 |
 |---|---|---|
 | HTTP/1.1 static request load | Yes | Yes |
 | HTTP and HTTPS with connection reuse | Yes | Yes, including TLS verification and SNI |
@@ -154,13 +157,19 @@ once per round and reshuffles before the next round; `random` independently
 samples an entry for every request and can repeat entries. `--seed` makes either
 randomized allocation sequence reproducible. With multiple connections, the
 allocation sequence remains deterministic but network arrival order can vary.
+`--replay-rounds <N>` runs the filtered sequential or shuffle sequence exactly
+`N` complete times and cannot be combined with `--requests`, `--duration`, or
+random replay order.
 
-`--replay-timestamps` preserves gaps between adjacent Nginx access-log
+`--replay-timestamps` preserves gaps between adjacent Nginx access-log or JSONL
 timestamps. The first request is immediate, and `--replay-speed <N>` scales
 subsequent gaps (`2` is twice as fast, `0.5` is half speed). Standard
 second-resolution `$time_local` values and fractional seconds up to microsecond
-precision are accepted. Records with the same timestamp are eligible to send
-without an added gap. Timestamp mode requires sequential access-log replay and
+precision are accepted for access logs; JSONL formats are defined by the
+optional request schema below. Without a schema, rload reads the top-level
+`timestamp_micros`, `time`, or `_time` field and accepts the default Nginx and
+RFC3339 formats. Records with the same timestamp are eligible to send without
+an added gap. Timestamp mode requires sequential replay and
 is mutually exclusive with `--replay-rate`; missing or decreasing timestamps
 are rejected. When the log cycles, the next round begins immediately because
 an interval from the final record back to the first is not present in the log.
@@ -176,9 +185,9 @@ selection and with either replay input format. They are mutually exclusive with
 
 JSONL replay accepts an optional schema file for extracting fields from nested
 records. The schema changes extraction paths only; it does not change existing
-method, URI, header, body, query-string, or validation rules. Every mapping is
-optional. When a mapping is omitted, rload uses the current top-level JSONL
-field extraction for that field.
+method, URI, header, body, query-string, or validation rules. The `fields`
+object and every mapping in it are optional. When a mapping is omitted, rload
+uses the current top-level JSONL field extraction for that field.
 
 ```yaml
 schema_version: 1
@@ -213,14 +222,14 @@ validation, while an omitted `method` continues to default to `GET`.
 
 The timestamp mapping accepts `timestamp_micros` as the canonical integer
 microsecond field and `time`/`_time` as aliases. For formatted string values,
-`timestamp.format` uses strftime/chrono-style placeholders and defaults to the
-Nginx format `%d/%b/%Y:%H:%M:%S %z`, for example
-`03/Jul/2026:08:41:17 +0000`. Fractional seconds can be parsed with `%f`.
-RFC3339 values can be selected explicitly with a schema format such as
-`%Y-%m-%dT%H:%M:%S%z`. Timestamp pacing requires timestamps in every record,
-rejects malformed or decreasing values, and uses the same microsecond pacing
-semantics as access-log replay. No separate timestamp-format CLI option is
-provided.
+`timestamp.format` uses strftime/chrono-style placeholders. When no format is
+specified, rload accepts both the Nginx format `%d/%b/%Y:%H:%M:%S %z` (for
+example `03/Jul/2026:08:41:17 +0000`) and RFC3339 (for example
+`2026-07-03T08:41:17Z`). A format can be specified explicitly; fractional
+seconds can be parsed with `%f`, and RFC3339 can be selected with `%+`.
+Timestamp pacing requires timestamps in every record, rejects malformed or decreasing values,
+and uses the same microsecond pacing semantics as access-log replay. No separate
+timestamp-format CLI option is provided.
 
 ### Machine-readable results
 

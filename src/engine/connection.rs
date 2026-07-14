@@ -25,6 +25,7 @@ pub(super) struct Connection {
     request: Arc<[u8]>,
     not_before: Option<Instant>,
     awaiting_pace: bool,
+    reconnect_at_pace: bool,
     write_offset: usize,
     decoder: ResponseDecoder,
     started: Option<Instant>,
@@ -69,6 +70,7 @@ impl Connection {
             request,
             not_before,
             awaiting_pace: false,
+            reconnect_at_pace: false,
             write_offset: 0,
             decoder: ResponseDecoder::new(method == crate::Method::Head),
             started: None,
@@ -264,7 +266,9 @@ impl Connection {
     pub(super) fn stop_if_expired(&mut self, registry: &Registry) -> Result<bool, RunError> {
         if self.started.is_none() && !self.limit.should_continue(self.completed) {
             self.done = true;
-            registry.deregister(self.stream.socket_mut())?;
+            if !self.reconnect_at_pace {
+                registry.deregister(self.stream.socket_mut())?;
+            }
             return Ok(true);
         }
         Ok(false)
@@ -281,6 +285,7 @@ impl Connection {
         self.request = request;
         self.not_before = not_before;
         self.awaiting_pace = false;
+        self.reconnect_at_pace = false;
         self.decoder = ResponseDecoder::new(method == crate::Method::Head);
     }
 
@@ -304,6 +309,7 @@ impl Connection {
         self.address_index = address_index;
         self.connected_at = Instant::now();
         self.awaiting_pace = false;
+        self.reconnect_at_pace = false;
         self.timer_generation += 1;
         registry.register(
             self.stream.socket_mut(),
@@ -334,6 +340,7 @@ impl Connection {
         self.started = None;
         self.connected_at = Instant::now();
         self.awaiting_pace = false;
+        self.reconnect_at_pace = false;
         self.timer_generation += 1;
         registry.register(
             self.stream.socket_mut(),
@@ -341,6 +348,47 @@ impl Connection {
             Interest::READABLE | Interest::WRITABLE,
         )?;
         Ok(true)
+    }
+
+    pub(super) fn defer_reconnect_until_pace(
+        &mut self,
+        registry: &Registry,
+    ) -> Result<bool, RunError> {
+        if self.started.is_some()
+            || self
+                .not_before
+                .is_none_or(|not_before| Instant::now() >= not_before)
+        {
+            return Ok(false);
+        }
+        registry.deregister(self.stream.socket_mut())?;
+        self.awaiting_pace = true;
+        self.reconnect_at_pace = true;
+        self.timer_generation += 1;
+        Ok(true)
+    }
+
+    pub(super) fn resume_at_pace(
+        &mut self,
+        registry: &Registry,
+        token: Token,
+    ) -> Result<(), RunError> {
+        if !self.reconnect_at_pace {
+            return self.refresh_interest(registry, token);
+        }
+        let (stream, address_index) = connect_from(&self.addresses, 0)?;
+        self.stream = Transport::new(stream, self.tls.as_ref())?;
+        self.address_index = address_index;
+        self.connected_at = Instant::now();
+        self.awaiting_pace = false;
+        self.reconnect_at_pace = false;
+        self.timer_generation += 1;
+        registry.register(
+            self.stream.socket_mut(),
+            token,
+            Interest::READABLE | Interest::WRITABLE,
+        )?;
+        Ok(())
     }
 
     pub(super) fn stop_after_duration_error(
