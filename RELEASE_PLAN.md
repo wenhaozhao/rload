@@ -116,8 +116,9 @@ bring timestamp pacing to JSONL request files.
    macOS, and Windows CI plus the three-way benchmark gate before release.
 7. Add an optional schema file for nested JSONL field mappings. Every schema
    mapping is optional: absent mappings use the conventional top-level names,
-   while absent record values retain current defaults: `method=GET`, no
-   `args`/`headers`/`body`, and `uri` remains required. Timestamp remains
+   while an absent mapping falls back to the current extraction logic for that
+   field. Schema configuration changes extraction paths only; it does not
+   change existing record-value defaults or validation. Timestamp remains
    optional for ordinary replay but is required when timestamp pacing is
    enabled. The schema owns timestamp format configuration; do not add a
    separate timestamp-format CLI option.

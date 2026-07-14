@@ -141,10 +141,11 @@ behavior.*
      regressions for both replay sources.
   5. **Schema-driven JSONL extraction**: Add an optional schema file whose
      mapping keys are all optional. An omitted mapping falls back to the
-     standard top-level field name; omitted record values retain current
-     defaults: `method=GET`, `args`/`headers`/`body` absent, while `uri`
-     remains required. Timestamp is optional for ordinary replay but required
-     for `--replay-timestamps`.
+     standard top-level extraction logic for that field. The schema changes
+     extraction paths only; it does not change record-value defaults or
+     validation (`method`, `args`, `headers`, `body`, and required `uri`).
+     Timestamp is optional for ordinary replay but required for
+     `--replay-timestamps`.
      The schema owns timestamp format configuration; no timestamp-format CLI
      option is introduced.
 
