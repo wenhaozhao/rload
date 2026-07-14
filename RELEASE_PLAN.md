@@ -114,9 +114,12 @@ bring timestamp pacing to JSONL request files.
 6. Add parser, pacing, CLI, compatibility, and benchmark regressions covering
    both replay sources and deterministic finite-cycle counts. Run Linux,
    macOS, and Windows CI plus the three-way benchmark gate before release.
-7. Add an optional schema file for nested JSONL field mappings. The schema
-   owns timestamp format configuration; do not add a separate timestamp-format
-   CLI option.
+7. Add an optional schema file for nested JSONL field mappings. Every schema
+   mapping is optional: absent mappings use the conventional top-level names,
+   while absent record values default to `method=GET`, no `args`/`headers`/
+   `body`, and `uri=/`. Timestamp remains optional for ordinary replay but is
+   required when timestamp pacing is enabled. The schema owns timestamp format
+   configuration; do not add a separate timestamp-format CLI option.
 
 ## Deferred follow-up work
 

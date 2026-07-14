@@ -139,9 +139,12 @@ behavior.*
      retain the existing method/args defaults, document the timestamp schema,
      and add parser, pacing, CLI, compatibility, and three-way benchmark
      regressions for both replay sources.
-  5. **Schema-driven JSONL extraction**: Add an optional schema file that maps
-     standard request fields and timestamp fields to nested JSON paths. The
-     schema owns timestamp format configuration; no timestamp-format CLI
+  5. **Schema-driven JSONL extraction**: Add an optional schema file whose
+     mapping keys are all optional. An omitted mapping falls back to the
+     standard top-level field name; omitted record values use safe defaults:
+     `method=GET`, `args`/`headers`/`body` absent, and `uri=/`. Timestamp is
+     optional for ordinary replay but required for `--replay-timestamps`.
+     The schema owns timestamp format configuration; no timestamp-format CLI
      option is introduced.
 
 ---
