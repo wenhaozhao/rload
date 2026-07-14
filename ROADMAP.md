@@ -167,22 +167,23 @@ behavior.*
 
 ---
 
-### Phase 3: v0.4.0 - Cloud-Native Multiplexed Protocols
-*Focus: Expand into modern service-mesh and cloud-native application communication protocols.*
+### Phase 3: v0.4.0 - Cloud-Native Multiplexed Protocols & Web Companion
+*Focus: Expand into modern cloud-native protocols and prototype the decoupled web helper.*
 
 * **Key Deliverables**:
   1. **HTTP/2 Frame Engine**: Develop a zero-copy, stream-multiplexed HTTP/2 decoder/encoder state machine over non-blocking TLS sockets.
   2. **gRPC Stress Testing**: Support replaying structured JSONL logs as gRPC protobuf payloads over multiplexed HTTP/2 streams, enabling native gRPC performance validation.
+  3. **Embedded Web Sidecar Companion (rload web)**: Embed a micro-web server hosting a lightweight, glassmorphic Single Page App (SPA) as static bytes. Provide an optional `--web` or `rload web` subcommand displaying live performance graphs from the browser.
 
 ---
 
 ### Phase 4: v1.0.0 - Interactive Dashboards and Target Autopilot
-*Focus: Deliver an outstanding user experience and automated deployment in chaotic target environments.*
+*Focus: Deliver an outstanding user experience, native desktop companions, and adaptive log-replay targeting.*
 
 * **Key Deliverables**:
   1. **High-Performance Terminal UI (TUI)**: Build an interactive console UI (similar to `oha`) displaying live latency histograms, real-time waveform charts, and connection statistics.
   2. **Dynamic Target Autopilot (Target Inference)**: Automatically infer `$scheme` and `$host` headers directly from replayed logs, allowing dynamic dispatching across multiple targets in mesh networks instead of restricting load to a single target URL.
-  3. **Web-Based Case Configurator**: Deliver an optional, lightweight browser-based debugger to visually construct YAML configs, pre-check log format compatibility, and visualize historical benchmark comparisons.
+  3. **Decoupled Desktop Client (rload-studio)**: Launch a standalone cross-platform GUI built with **Tauri**. It wraps the core `rload` CLI binary inside its bundle, communicates over non-blocking JSON standard pipes, and provides visual drag-and-drop log parsing, validation, and historical run regression charting.
 
 ### Future candidate: Scripted Request/Response Hooks
 
