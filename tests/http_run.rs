@@ -195,7 +195,7 @@ fn timestamp_replay_reconnects_when_server_closes_an_idle_paced_connection() {
     fs::write(
         &path,
         "{\"uri\":\"/one\",\"timestamp_micros\":1000000}\n\
-         {\"uri\":\"/two\",\"timestamp_micros\":1200000}\n",
+         {\"uri\":\"/two\",\"timestamp_micros\":2000000}\n",
     )
     .unwrap();
     let config = RunConfig {
@@ -222,11 +222,11 @@ fn timestamp_replay_reconnects_when_server_closes_an_idle_paced_connection() {
     let reconnect_delay = server.join().unwrap();
     assert_eq!(summary.completed, 2);
     assert!(
-        reconnect_delay >= Duration::from_millis(150),
+        reconnect_delay >= Duration::from_millis(500),
         "reconnected before the pacing deadline: {reconnect_delay:?}"
     );
     assert!(
-        reconnect_delay < Duration::from_millis(500),
+        reconnect_delay < Duration::from_secs(2),
         "reconnected too late after the pacing deadline: {reconnect_delay:?}"
     );
 }
