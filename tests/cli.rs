@@ -698,6 +698,66 @@ fn cli_replays_jsonl_with_schema_timestamp_gaps() {
 }
 
 #[test]
+fn cli_replays_jsonl_default_timestamps_without_schema() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut arrivals = Vec::new();
+        for _ in 0..2 {
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                let mut byte = [0];
+                stream.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            arrivals.push(Instant::now());
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        }
+        arrivals
+    });
+    let path = env::temp_dir().join(format!(
+        "rload-default-timestamp-{}.jsonl",
+        std::process::id()
+    ));
+    fs::write(
+        &path,
+        "{\"uri\":\"/one\",\"time\":\"2026-07-03T08:41:17.000Z\"}\n\
+         {\"uri\":\"/two\",\"time\":\"2026-07-03T08:41:17.200Z\"}\n",
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--connections",
+            "1",
+            "--request-file",
+            path.to_str().unwrap(),
+            "--replay-rounds",
+            "1",
+            "--replay-timestamps",
+            "--replay-speed",
+            "2",
+            &format!("http://{address}/"),
+        ])
+        .output()
+        .unwrap();
+    fs::remove_file(path).unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let arrivals = server.join().unwrap();
+    let gap = arrivals[1].duration_since(arrivals[0]);
+    assert!(gap >= Duration::from_millis(80), "gap: {gap:?}");
+    assert!(gap < Duration::from_millis(500), "gap: {gap:?}");
+}
+
+#[test]
 fn cli_rejects_invalid_timestamp_replay_combinations() {
     let path = env::temp_dir().join(format!(
         "rload-timestamp-invalid-{}.log",
@@ -1031,12 +1091,6 @@ fn cli_rejects_multiple_replay_inputs() {
 fn cli_rejects_invalid_schema_and_round_combinations() {
     for arguments in [
         vec!["--request-schema", "schema.yaml", "http://localhost/"],
-        vec![
-            "--request-file",
-            "requests.jsonl",
-            "--replay-timestamps",
-            "http://localhost/",
-        ],
         vec![
             "--request-file",
             "requests.jsonl",

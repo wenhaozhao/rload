@@ -339,9 +339,6 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     if replay_timestamps && access_log.is_none() && request_file.is_none() {
         return Err("--replay-timestamps requires --access-log or --request-file".into());
     }
-    if replay_timestamps && request_file.is_some() && request_schema.is_none() {
-        return Err("JSONL timestamp pacing requires --request-schema".into());
-    }
     if replay_speed_was_set && !replay_timestamps {
         return Err("--replay-speed requires --replay-timestamps".into());
     }

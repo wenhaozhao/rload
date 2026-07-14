@@ -122,11 +122,6 @@ pub fn run_request_file_with_run_options(
     filter: ReplayFilter,
 ) -> Result<RunSummary, RunError> {
     validate_replay_options(&options.replay, options.rounds)?;
-    if options.replay.timestamps && options.schema.is_none() {
-        return Err(RunError::InvalidConfig(
-            "JSONL timestamp pacing requires a request schema".into(),
-        ));
-    }
     let replay = request_file::read(
         path.as_ref(),
         options.schema.as_deref(),

@@ -12,6 +12,8 @@ All notable changes to rload are documented here.
   per-field fallback to the existing top-level extraction rules.
 - JSONL timestamp pacing with schema-defined chrono formats and load-time
   materialization to microseconds.
+- Schema-free JSONL timestamp pacing through the default top-level timestamp
+  aliases and formats.
 - Default JSONL timestamp parsing accepts both Nginx and RFC3339 values when
   no explicit format is configured.
 - Configured/completed replay-round fields in text, beauty, and JSON output.

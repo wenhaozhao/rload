@@ -166,9 +166,10 @@ timestamps. The first request is immediate, and `--replay-speed <N>` scales
 subsequent gaps (`2` is twice as fast, `0.5` is half speed). Standard
 second-resolution `$time_local` values and fractional seconds up to microsecond
 precision are accepted for access logs; JSONL formats are defined by the
-request schema below, and JSONL timestamp pacing requires
-`--request-schema <FILE>`. Records with the same timestamp are eligible to send
-without an added gap. Timestamp mode requires sequential replay and
+optional request schema below. Without a schema, rload reads the top-level
+`timestamp_micros`, `time`, or `_time` field and accepts the default Nginx and
+RFC3339 formats. Records with the same timestamp are eligible to send without
+an added gap. Timestamp mode requires sequential replay and
 is mutually exclusive with `--replay-rate`; missing or decreasing timestamps
 are rejected. When the log cycles, the next round begins immediately because
 an interval from the final record back to the first is not present in the log.
@@ -226,9 +227,7 @@ specified, rload accepts both the Nginx format `%d/%b/%Y:%H:%M:%S %z` (for
 example `03/Jul/2026:08:41:17 +0000`) and RFC3339 (for example
 `2026-07-03T08:41:17Z`). A format can be specified explicitly; fractional
 seconds can be parsed with `%f`, and RFC3339 can be selected with `%+`.
-JSONL timestamp pacing requires a request schema even when its timestamp
-mapping is omitted and the default top-level aliases are used. Timestamp pacing
-requires timestamps in every record, rejects malformed or decreasing values,
+Timestamp pacing requires timestamps in every record, rejects malformed or decreasing values,
 and uses the same microsecond pacing semantics as access-log replay. No separate
 timestamp-format CLI option is provided.
 
