@@ -26,3 +26,5 @@ jstack*.sh
 .run/
 config-cache
 .vscode
+
+results
