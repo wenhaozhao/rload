@@ -171,34 +171,34 @@ jobs:
           version, linux_url, linux_sha256, macos_url, macos_sha256, macos_intel_url, macos_intel_sha256 = sys.argv[1:]
           path = Path("Formula/rload.rb")
           path.write_text(f'''class Rload < Formula
-  desc "Rust HTTP load generator with Nginx access-log and JSONL replay"
-  homepage "https://wenhaozhao.github.io/rload/"
-  license any_of: ["MIT", "Apache-2.0"]
+            desc "Rust HTTP load generator with Nginx access-log and JSONL replay"
+            homepage "https://wenhaozhao.github.io/rload/"
+            license any_of: ["MIT", "Apache-2.0"]
 
-          on_arm do
-            url "{macos_url}"
-            sha256 "{macos_sha256}"
-          end
+            on_arm do
+              url "{macos_url}"
+              sha256 "{macos_sha256}"
+            end
 
-          on_intel do
-            url "{macos_intel_url}"
-            sha256 "{macos_intel_sha256}"
-          end
+            on_intel do
+              url "{macos_intel_url}"
+              sha256 "{macos_intel_sha256}"
+            end
 
-  on_linux do
-    url "{linux_url}"
-    sha256 "{linux_sha256}"
-  end
+            on_linux do
+              url "{linux_url}"
+              sha256 "{linux_sha256}"
+            end
 
-  def install
-    bin.install "rload"
-  end
+            def install
+              bin.install "rload"
+            end
 
-  test do
-    assert_match "rload", shell_output("#{{bin}}/rload --help")
-  end
-end
-''')
+            test do
+              assert_match "rload", shell_output("#{{bin}}/rload --help")
+            end
+            end
+            ''')
           PY
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
