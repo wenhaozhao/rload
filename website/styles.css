@@ -1,19 +1,51 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
-/* 设计系统：高拟真暗色调、玻璃拟态与霓虹微光 */
+/* ========================================== */
+/* 设计系统：极致清爽、明亮现代风格 (Default Light Theme) */
+/* ========================================== */
 :root {
-  --bg-dark: #0a0f0e;
-  --bg-dark-rgb: 10, 15, 14;
-  --card-dark: rgba(18, 28, 26, 0.65);
-  --text-light: #f3f6f4;
-  --text-muted: #8da39a;
-  --primary-lime: #d8f36b;
-  --primary-lime-rgb: 216, 243, 107;
-  --accent-orange: #ff7449;
-  --accent-orange-rgb: 255, 116, 73;
-  --accent-blue: #4ce1d1;
-  --border-color: rgba(52, 72, 63, 0.45);
-  --line-light: rgba(255, 255, 255, 0.08);
+  --bg-dark: #f6f8f7;
+  --bg-dark-rgb: 246, 248, 247;
+  --card-dark: rgba(255, 255, 255, 0.82);
+  --text-light: #111b18;
+  --text-muted: #536460;
+  --primary-lime: #1e876a;
+  --primary-lime-rgb: 30, 135, 106;
+  --accent-orange: #e34c26;
+  --accent-orange-rgb: 227, 76, 38;
+  --accent-blue: #1c7c8c;
+  --border-color: rgba(17, 27, 24, 0.08);
+  --line-light: rgba(0, 0, 0, 0.04);
+  --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.02), 0 1px 3px rgba(0, 0, 0, 0.01);
+  --ribbon-bg: linear-gradient(90deg, #1e876a 0%, #a2ebd8 100%);
+  --ribbon-text: #ffffff;
+  --contrast-bg: radial-gradient(ellipse at bottom, #eef3f1 0%, var(--bg-dark) 100%);
+  --tab-active-text: #ffffff;
+}
+
+/* ========================================== */
+/* 自动切换：高拟真暗色调、玻璃拟态与霓虹微光 (Auto Dark Theme) */
+/* ========================================== */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-dark: #0a0f0e;
+    --bg-dark-rgb: 10, 15, 14;
+    --card-dark: rgba(18, 28, 26, 0.65);
+    --text-light: #f3f6f4;
+    --text-muted: #8da39a;
+    --primary-lime: #d8f36b;
+    --primary-lime-rgb: 216, 243, 107;
+    --accent-orange: #ff7449;
+    --accent-orange-rgb: 255, 116, 73;
+    --accent-blue: #4ce1d1;
+    --border-color: rgba(52, 72, 63, 0.45);
+    --line-light: rgba(255, 255, 255, 0.08);
+    --card-shadow: 0 15px 35px rgba(0, 0, 0, 0.3), 0 0 25px rgba(216, 243, 107, 0.03);
+    --ribbon-bg: linear-gradient(90deg, #d8f36b 0%, #edfca1 100%);
+    --ribbon-text: #0a0f0e;
+    --contrast-bg: radial-gradient(ellipse at bottom, rgba(13, 20, 18, 0.9) 0%, var(--bg-dark) 80%);
+    --tab-active-text: #0a0f0e;
+  }
 }
 
 * {
@@ -56,7 +88,7 @@ a {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(10, 15, 14, 0.8);
+  background: rgba(var(--bg-dark-rgb), 0.82);
 }
 
 .logo {
@@ -98,7 +130,7 @@ nav {
 
 nav a:not(.nav-cta):hover {
   color: var(--primary-lime);
-  text-shadow: 0 0 10px rgba(var(--primary-lime-rgb), 0.3);
+  text-shadow: 0 0 10px rgba(var(--primary-lime-rgb), 0.15);
 }
 
 .nav-cta {
@@ -108,13 +140,13 @@ nav a:not(.nav-cta):hover {
   color: var(--primary-lime);
   background: rgba(var(--primary-lime-rgb), 0.05);
   font-weight: 600;
-  box-shadow: 0 0 15px rgba(var(--primary-lime-rgb), 0.1);
+  box-shadow: 0 0 15px rgba(var(--primary-lime-rgb), 0.08);
 }
 
 .nav-cta:hover {
   background: var(--primary-lime);
-  color: var(--bg-dark);
-  box-shadow: 0 0 25px rgba(var(--primary-lime-rgb), 0.35);
+  color: var(--tab-active-text);
+  box-shadow: 0 0 25px rgba(var(--primary-lime-rgb), 0.25);
   transform: translateY(-2px);
 }
 
@@ -137,7 +169,7 @@ nav a:not(.nav-cta):hover {
   width: 300px;
   height: 300px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(var(--accent-orange-rgb), 0.12) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(var(--accent-orange-rgb), 0.06) 0%, transparent 70%);
   filter: blur(50px);
   pointer-events: none;
 }
@@ -150,7 +182,7 @@ nav a:not(.nav-cta):hover {
   width: 400px;
   height: 400px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(var(--primary-lime-rgb), 0.08) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(var(--primary-lime-rgb), 0.06) 0%, transparent 70%);
   filter: blur(60px);
   pointer-events: none;
 }
@@ -172,13 +204,13 @@ nav a:not(.nav-cta):hover {
   border-radius: 50%;
   background: var(--accent-orange);
   margin-right: 10px;
-  box-shadow: 0 0 10px rgba(var(--accent-orange-rgb), 0.6);
+  box-shadow: 0 0 10px rgba(var(--accent-orange-rgb), 0.5);
   animation: pulse-glow 2s infinite alternate;
 }
 
 @keyframes pulse-glow {
-  0% { transform: scale(0.9); opacity: 0.6; box-shadow: 0 0 5px rgba(var(--accent-orange-rgb), 0.4); }
-  100% { transform: scale(1.1); opacity: 1; box-shadow: 0 0 12px rgba(var(--accent-orange-rgb), 0.8); }
+  0% { transform: scale(0.9); opacity: 0.6; box-shadow: 0 0 5px rgba(var(--accent-orange-rgb), 0.3); }
+  100% { transform: scale(1.1); opacity: 1; box-shadow: 0 0 12px rgba(var(--accent-orange-rgb), 0.6); }
 }
 
 h1, h2 {
@@ -229,15 +261,22 @@ h1 em, h2 em {
 
 .button.primary {
   background: var(--primary-lime);
-  color: var(--bg-dark);
+  color: var(--tab-active-text);
   border-color: var(--primary-lime);
-  box-shadow: 0 4px 20px rgba(var(--primary-lime-rgb), 0.2);
+  box-shadow: 0 4px 20px rgba(var(--primary-lime-rgb), 0.15);
 }
 
 .button.primary:hover {
-  background: #e6ff82;
-  border-color: #e6ff82;
-  box-shadow: 0 6px 25px rgba(var(--primary-lime-rgb), 0.4);
+  background: #25a47e;
+  border-color: #25a47e;
+  box-shadow: 0 6px 25px rgba(var(--primary-lime-rgb), 0.3);
+}
+
+@media (prefers-color-scheme: dark) {
+  .button.primary:hover {
+    background: #edfca1;
+    border-color: #edfca1;
+  }
 }
 
 .meta {
@@ -247,12 +286,12 @@ h1 em, h2 em {
   padding-left: 14px;
 }
 
-/* 仿真终端美化 */
+/* 仿真终端美化 (始终保持高对比度暗调，极为专业) */
 .terminal {
-  background: rgba(13, 20, 18, 0.85);
+  background: rgba(13, 20, 18, 0.94);
   border-radius: 14px;
-  border: 1px solid var(--border-color);
-  box-shadow: 0 20px 50px rgba(0,0,0,0.4), 0 0 40px rgba(var(--primary-lime-rgb), 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.3), 0 0 40px rgba(var(--primary-lime-rgb), 0.02);
   overflow: hidden;
   transform: rotate(1.2deg);
   transition: all 0.4s ease;
@@ -260,17 +299,17 @@ h1 em, h2 em {
 
 .terminal:hover {
   transform: rotate(0deg) scale(1.02);
-  box-shadow: 0 30px 60px rgba(0,0,0,0.5), 0 0 50px rgba(var(--primary-lime-rgb), 0.08);
+  box-shadow: 0 30px 60px rgba(0,0,0,0.4), 0 0 50px rgba(var(--primary-lime-rgb), 0.06);
   border-color: rgba(var(--primary-lime-rgb), 0.3);
 }
 
 .term-head {
   height: 40px;
-  background: rgba(22, 33, 30, 0.8);
+  background: rgba(22, 33, 30, 0.9);
   display: flex;
   align-items: center;
   padding: 0 18px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .term-head span {
@@ -287,7 +326,7 @@ h1 em, h2 em {
 
 .term-head b {
   font: 11px/1 'DM Mono', monospace;
-  color: var(--text-muted);
+  color: #7d8c89;
   margin-left: auto;
 }
 
@@ -301,29 +340,29 @@ h1 em, h2 em {
 }
 
 .terminal em {
-  color: var(--accent-orange);
+  color: #ff7449;
   font-style: normal;
 }
 
 .terminal strong {
-  color: var(--accent-blue);
+  color: #4ce1d1;
   font-weight: 500;
 }
 
 .terminal mark {
-  background: rgba(var(--primary-lime-rgb), 0.1);
+  background: rgba(216, 243, 107, 0.1);
   padding: 2px 6px;
   border-radius: 4px;
-  color: var(--primary-lime);
+  color: #d8f36b;
 }
 
 /* 滚动丝带美化 */
 .ribbon {
-  background: linear-gradient(90deg, var(--primary-lime) 0%, #edfca1 100%);
-  color: var(--bg-dark);
+  background: var(--ribbon-bg);
+  color: var(--ribbon-text);
   font: 600 11px 'DM Mono', monospace;
   letter-spacing: 1.5px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
 }
 
 .ribbon .wrap {
@@ -368,6 +407,7 @@ h1 em, h2 em {
   transition: all 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
   overflow: hidden;
   backdrop-filter: blur(8px);
+  box-shadow: var(--card-shadow);
 }
 
 .card::before {
@@ -384,7 +424,13 @@ h1 em, h2 em {
 .card:hover {
   transform: translateY(-6px);
   border-color: rgba(var(--primary-lime-rgb), 0.25);
-  box-shadow: 0 15px 35px rgba(0,0,0,0.3), 0 0 25px rgba(var(--primary-lime-rgb), 0.03);
+  box-shadow: 0 15px 35px rgba(0,0,0,0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  .card:hover {
+    box-shadow: 0 15px 35px rgba(0,0,0,0.3), 0 0 25px rgba(216, 243, 107, 0.03);
+  }
 }
 
 .card:hover::before {
@@ -392,8 +438,30 @@ h1 em, h2 em {
 }
 
 .card.dark {
-  background: rgba(13, 20, 18, 0.85);
-  border-color: rgba(var(--primary-lime-rgb), 0.15);
+  background: #111c19;
+  color: #f3f6f4;
+  border-color: rgba(30, 135, 106, 0.15);
+}
+
+.card.dark p {
+  color: #8da39a;
+}
+
+.card.dark small {
+  color: #536460;
+}
+
+@media (prefers-color-scheme: dark) {
+  .card.dark {
+    background: rgba(13, 20, 18, 0.85);
+    border-color: rgba(var(--primary-lime-rgb), 0.15);
+  }
+  .card.dark p {
+    color: #8da39a;
+  }
+  .card.dark small {
+    color: var(--text-muted);
+  }
 }
 
 .card.dark:hover {
@@ -406,7 +474,6 @@ h1 em, h2 em {
 
 .card.orange:hover {
   border-color: rgba(var(--accent-orange-rgb), 0.3);
-  box-shadow: 0 15px 35px rgba(0,0,0,0.3), 0 0 25px rgba(var(--accent-orange-rgb), 0.03);
 }
 
 .card small {
@@ -436,7 +503,7 @@ h1 em, h2 em {
   margin-top: 30px;
   color: var(--accent-blue);
   font: 11px 'DM Mono', monospace;
-  background: rgba(0,0,0,0.2);
+  background: rgba(var(--primary-lime-rgb), 0.05);
   padding: 10px 14px;
   border-radius: 6px;
   border-left: 2px solid var(--accent-blue);
@@ -447,7 +514,7 @@ h1 em, h2 em {
 .bars {
   margin-top: 35px;
   padding: 15px 18px;
-  background: rgba(0,0,0,0.25);
+  background: rgba(var(--primary-lime-rgb), 0.03);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
@@ -470,8 +537,14 @@ h1 em, h2 em {
 }
 
 .bars i:nth-of-type(2) {
-  background: #bfdb58;
+  background: #39a385;
   width: 100%;
+}
+
+@media (prefers-color-scheme: dark) {
+  .bars i:nth-of-type(2) {
+    background: #bfdb58;
+  }
 }
 
 .bars i:nth-of-type(3) {
@@ -481,7 +554,7 @@ h1 em, h2 em {
 
 /* 02 对比表格区美化 */
 .contrast {
-  background: radial-gradient(ellipse at bottom, rgba(13, 20, 18, 0.9) 0%, var(--bg-dark) 80%);
+  background: var(--contrast-bg);
   border-top: 1px solid var(--border-color);
   border-bottom: 1px solid var(--border-color);
 }
@@ -494,7 +567,7 @@ h1 em, h2 em {
   border-top: 1px solid var(--border-color);
   margin-top: 60px;
   font-size: 15px;
-  background: rgba(var(--bg-dark-rgb), 0.4);
+  background: rgba(var(--bg-dark-rgb), 0.6);
   border-radius: 8px 8px 0 0;
   overflow: hidden;
 }
@@ -508,7 +581,7 @@ h1 em, h2 em {
 }
 
 .table > div:not(.thead):hover {
-  background: rgba(216, 243, 107, 0.02);
+  background: rgba(var(--primary-lime-rgb), 0.03);
 }
 
 .table span {
@@ -539,7 +612,7 @@ h1 em, h2 em {
   letter-spacing: 1px;
   color: var(--text-muted);
   min-height: 48px !important;
-  background: rgba(22, 33, 30, 0.8);
+  background: rgba(var(--primary-lime-rgb), 0.06);
   border-bottom: 2px solid var(--border-color) !important;
 }
 
@@ -559,7 +632,7 @@ h1 em, h2 em {
   display: flex;
   gap: 10px;
   margin: 30px 0 20px;
-  background: rgba(0,0,0,0.25);
+  background: rgba(var(--primary-lime-rgb), 0.04);
   padding: 6px;
   border-radius: 8px;
   width: max-content;
@@ -585,7 +658,7 @@ h1 em, h2 em {
 
 .tab-btn.active {
   background: var(--primary-lime);
-  color: var(--bg-dark);
+  color: var(--tab-active-text);
   box-shadow: 0 4px 12px rgba(var(--primary-lime-rgb), 0.15);
 }
 
@@ -608,13 +681,14 @@ h1 em, h2 em {
   min-height: 240px;
 }
 
+/* 终端/代码块等在清爽模式下依然采用酷炫暗调，保证代码高可读性 */
 .install-code {
-  background: rgba(13, 20, 18, 0.9);
-  border: 1px solid var(--border-color);
+  background: rgba(13, 20, 18, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   color: #d2deda;
   padding: 30px;
   border-radius: 12px;
-  box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+  box-shadow: 0 15px 40px rgba(0,0,0,0.15);
   font: 13px/1.9 'DM Mono', monospace;
   display: none;
   opacity: 0;
@@ -631,7 +705,7 @@ h1 em, h2 em {
 }
 
 .install-code span {
-  color: var(--primary-lime);
+  color: #d8f36b;
 }
 
 /* 04 经典实战场景 */
@@ -651,6 +725,7 @@ h1 em, h2 em {
   border: 1px solid var(--border-color);
   border-radius: 10px;
   padding: 26px 30px;
+  box-shadow: var(--card-shadow);
 }
 
 .qs-item h4 {
@@ -668,7 +743,8 @@ h1 em, h2 em {
 
 .qs-item pre {
   margin: 0;
-  background: rgba(0,0,0,0.25);
+  background: rgba(13, 20, 18, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   padding: 12px 16px;
   border-radius: 6px;
   overflow-x: auto;
@@ -676,7 +752,7 @@ h1 em, h2 em {
 
 .qs-item code {
   font: 12px 'DM Mono', monospace;
-  color: var(--text-light);
+  color: #d2deda;
 }
 
 /* 页脚美化 */
