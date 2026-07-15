@@ -9,6 +9,7 @@
 `rload` 是一个 Rust 编写的 HTTP 压测/负载生成工具，具有与 wrk 兼容的 CLI 语义、Nginx 访问日志回放以及结构化 JSONL 请求回放功能。
 
 官方网站: [wenhaozhao.github.io/rload](https://wenhaozhao.github.io/rload/)
+使用手册: [English User Guide](./docs/user_guide.md) | [中文使用手册](./docs/user_guide_zh-cn.md)
 
 当前的垂直切片（vertical slice）提供了：
 

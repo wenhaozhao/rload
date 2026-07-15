@@ -13,6 +13,7 @@ English | [中文](./README.zh-cn.md)
 Nginx access-log replay, and structured JSONL request replay.
 
 Official website: [wenhaozhao.github.io/rload](https://wenhaozhao.github.io/rload/)
+User Guide: [English User Guide](./docs/user_guide.md) | [中文使用手册](./docs/user_guide_zh-cn.md)
 
 The current vertical slice provides:
 
