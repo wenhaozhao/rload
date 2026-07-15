@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="rload：Rust 原生高性能 HTTP 压测与高保真真实流量回放引擎">
-  <title>rload 0.2.2 · Replay reality. Find the limit.</title>
+  <title>rload 0.2.4 · Replay reality. Find the limit.</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -35,14 +35,14 @@
           <a class="button primary" href="#install">立即安装 ↓</a>
           <a class="button" href="https://github.com/wenhaozhao/rload" target="_blank" rel="noopener noreferrer">GitHub 源码 ↗</a>
         </div>
-        <p class="meta">最新稳定版 v0.2.2　·　MIT / Apache-2.0 双协议　·　Rust 1.96+ / 零依赖</p>
+        <p class="meta">最新稳定版 v0.2.4　·　MIT / Apache-2.0 双协议　·　Rust 1.96+ / 单一原生二进制</p>
       </div>
 
       <!-- 仿真终端效果 -->
       <div class="terminal" id="terminal-preview">
         <div class="term-head">
           <span>●</span><span>●</span><span>●</span>
-          <b>rload v0.2.2</b>
+          <b>rload v0.2.4</b>
         </div>
         <pre><code><em>$</em> rload -t 4 -c 200 -d 30s \<br>  --log-replay access.log \<br>  --log-order shuffle --seed 42 \<br>  http://staging-api.internal<br><br>Running 30s test @ http://staging-api.internal<br>  4 threads and 200 connections<br><br><strong>Thread Stats</strong>   Avg      Max     +/- Stdev<br>  Latency     2.18ms   18.74ms    84.32%<br>  Req/Sec    12.45k   15.92k     76.10%<br><br>  <strong>1482701</strong> requests in 30.00s, <strong>3.24GB</strong> read<br><strong>Requests/sec:</strong>　49,423.36<br><strong>Average latency:</strong> 2.18ms<br><strong>99% Latency:</strong>　　 8.12ms<br><strong>Socket errors:</strong> connect 0, read 0, write 0, timeout 0<br><br><mark>● log replay complete (shuffled, seed: 42)</mark></code></pre>
       </div>
@@ -74,7 +74,7 @@
           <small>01 / HIGH FIDELITY</small>
           <h3>Nginx 访问日志高保真回放</h3>
           <p>原生流式解析 Common/Combined Nginx 日志，无需编写任何 Lua 脚本。支持顺序、洗牌（Shuffle）和随机三种回放模式。</p>
-          <code>--log-replay access.log --log-order shuffle --seed 42</code>
+          <code>--access-log access.log --replay-order shuffle --seed 42</code>
         </article>
         
         <article class="card">
@@ -116,7 +116,7 @@
             <span>核心维度 / 功能</span>
             <span>wrk 4.2.0 (C)</span>
             <span>k6 (Go / JS)</span>
-            <span>rload v0.2.2 (Rust)</span>
+            <span>rload v0.2.4 (Rust)</span>
           </div>
           <div>
             <span>静态极速 HTTP 压测</span>
@@ -209,12 +209,12 @@
         <div class="qs-item">
           <h4>📂 场景 B：高保真 Nginx 日志随机回放</h4>
           <p>读取真实的 Nginx 访问日志，使用特定随机种子（确保结果可幂等重现）打乱顺序进行回放：</p>
-          <pre><code>rload -c 100 -d 60s --log-replay ./access.log --log-order shuffle --seed 12345 http://staging.internal</code></pre>
+          <pre><code>rload -c 100 -d 60s --access-log ./access.log --replay-order shuffle --seed 12345 http://staging.internal</code></pre>
         </div>
         <div class="qs-item">
           <h4>⏳ 场景 C：按日志真实时间戳速度回放</h4>
           <p>按照 Nginx 日志中记录的相对时间差高保真还原流量。使用双倍速进行压力测试：</p>
-          <pre><code>rload -c 50 --log-replay ./access.log --replay-timestamps --replay-speed 2.0 http://staging.internal</code></pre>
+          <pre><code>rload -c 50 --access-log ./access.log --replay-timestamps --replay-speed 2.0 http://staging.internal</code></pre>
         </div>
         <div class="qs-item">
           <h4>📝 场景 D：JSONL 多形态动态请求回放</h4>

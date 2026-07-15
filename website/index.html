@@ -35,14 +35,14 @@
           <a class="button primary" href="#install">Install Now ↓</a>
           <a class="button" href="https://github.com/wenhaozhao/rload" target="_blank" rel="noopener noreferrer">GitHub Source ↗</a>
         </div>
-        <p class="meta">Latest Stable v0.2.2　·　MIT / Apache-2.0 Dual License　·　Rust 1.96+ / Zero Dependencies</p>
+        <p class="meta">Latest Stable v0.2.4　·　MIT / Apache-2.0 Dual License　·　Rust 1.96+ / Single native binary</p>
       </div>
 
       <!-- Terminal Preview -->
       <div class="terminal" id="terminal-preview">
         <div class="term-head">
           <span>●</span><span>●</span><span>●</span>
-          <b>rload v0.2.2</b>
+          <b>rload v0.2.4</b>
         </div>
         <pre><code><em>$</em> rload -t 4 -c 200 -d 30s \<br>  --log-replay access.log \<br>  --log-order shuffle --seed 42 \<br>  http://staging-api.internal<br><br>Running 30s test @ http://staging-api.internal<br>  4 threads and 200 connections<br><br><strong>Thread Stats</strong>   Avg      Max     +/- Stdev<br>  Latency     2.18ms   18.74ms    84.32%<br>  Req/Sec    12.45k   15.92k     76.10%<br><br>  <strong>1482701</strong> requests in 30.00s, <strong>3.24GB</strong> read<br><strong>Requests/sec:</strong>　49,423.36<br><strong>Average latency:</strong> 2.18ms<br><strong>99% Latency:</strong>　　 8.12ms<br><strong>Socket errors:</strong> connect 0, read 0, write 0, timeout 0<br><br><mark>● log replay complete (shuffled, seed: 42)</mark></code></pre>
       </div>
@@ -74,7 +74,7 @@
           <small>01 / HIGH FIDELITY</small>
           <h3>Native Nginx Log Replay</h3>
           <p>Stream-parse Common or Combined Nginx logs natively without writing complex Lua scripts. Supports sequential, shuffled, and random replay modes.</p>
-          <code>--log-replay access.log --log-order shuffle --seed 42</code>
+          <code>--access-log access.log --replay-order shuffle --seed 42</code>
         </article>
         
         <article class="card">
@@ -116,7 +116,7 @@
             <span>Feature / Dimension</span>
             <span>wrk 4.2.0 (C)</span>
             <span>k6 (Go / JS)</span>
-            <span>rload v0.2.2 (Rust)</span>
+            <span>rload v0.2.4 (Rust)</span>
           </div>
           <div>
             <span>Static HTTP Load</span>
@@ -209,12 +209,12 @@
         <div class="qs-item">
           <h4>📂 Scenario B: High-fidelity Nginx log shuffle replay</h4>
           <p>Replay an Nginx access log in a shuffled order using a deterministic seed for reproducible results:</p>
-          <pre><code>rload -c 100 -d 60s --log-replay ./access.log --log-order shuffle --seed 12345 http://staging.internal</code></pre>
+          <pre><code>rload -c 100 -d 60s --access-log ./access.log --replay-order shuffle --seed 12345 http://staging.internal</code></pre>
         </div>
         <div class="qs-item">
           <h4>⏳ Scenario C: Log replay with relative timestamp pacing</h4>
           <p>Reproduce real temporal gaps based on access-log timestamps at double speed (2.0x pacing):</p>
-          <pre><code>rload -c 50 --log-replay ./access.log --replay-timestamps --replay-speed 2.0 http://staging.internal</code></pre>
+          <pre><code>rload -c 50 --access-log ./access.log --replay-timestamps --replay-speed 2.0 http://staging.internal</code></pre>
         </div>
         <div class="qs-item">
           <h4>📝 Scenario D: Structured JSONL request sequence replay</h4>
