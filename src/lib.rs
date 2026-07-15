@@ -22,3 +22,4 @@ pub use engine::{
 };
 pub use error::RunError;
 pub use metrics::{LatencyHistogram, MethodSummary, RunSummary, SocketErrors, UriStatistic};
+pub use request_file::SkippedRecords;

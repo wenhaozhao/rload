@@ -2,6 +2,14 @@
 
 All notable changes to rload are documented here.
 
+## [0.2.4] - 2026-07-15
+
+### Changed
+
+- JSONL replay can skip malformed or invalid records with the opt-in
+  `--skip-invalid-records` flag and reports skipped-record totals grouped by
+  reason in text, beauty, and JSON output. Strict loading remains the default.
+
 ## [0.2.3] - 2026-07-15
 
 ### Added

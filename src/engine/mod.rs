@@ -13,7 +13,7 @@ mod connection;
 
 use crate::access_log::{self, ReplayRequest};
 use crate::replay_filter;
-use crate::request_file::{self, validate_request};
+use crate::request_file::{self, SkippedRecords, validate_request};
 use crate::request_sequence::{EncodedRequest, RequestSequence, method_uri_start};
 use crate::target::Target;
 use crate::{
@@ -87,13 +87,14 @@ pub fn run_access_log_with_run_options(
     run_with_roots(
         config,
         RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned()),
-        RequestInput::Replay(
-            replay,
-            options.replay,
-            options.rounds,
-            filtered,
+        RequestInput::Replay(ReplayInput {
+            requests: replay,
+            options: options.replay,
+            rounds: options.rounds,
+            filtered_entries: filtered,
             skipped_methods,
-        ),
+            skipped_records: Default::default(),
+        }),
     )
 }
 
@@ -122,6 +123,7 @@ pub fn run_request_file_with_filter(
             replay: options,
             rounds: None,
             schema: None,
+            skip_invalid_records: false,
         },
         filter,
     )
@@ -138,21 +140,24 @@ pub fn run_request_file_with_run_options(
         path.as_ref(),
         options.schema.as_deref(),
         options.replay.timestamps,
+        options.skip_invalid_records,
     )?;
-    let (replay, filtered) = replay_filter::apply(replay, &filter)?;
+    let skipped_records = replay.skipped_records;
+    let (replay, filtered) = replay_filter::apply(replay.requests, &filter)?;
     if options.replay.timestamps {
         validate_timestamps(&replay, TimestampSource::RequestFile)?;
     }
     run_with_roots(
         config,
         RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned()),
-        RequestInput::Replay(
-            replay,
-            options.replay,
-            options.rounds,
-            filtered,
-            Default::default(),
-        ),
+        RequestInput::Replay(ReplayInput {
+            requests: replay,
+            options: options.replay,
+            rounds: options.rounds,
+            filtered_entries: filtered,
+            skipped_methods: Default::default(),
+            skipped_records,
+        }),
     )
 }
 
@@ -250,15 +255,16 @@ fn run_with_roots(
 ) -> Result<RunSummary, RunError> {
     let target = Target::parse(&config.url)?;
     config.validate()?;
-    let (
-        requests,
-        filtered_replay_entries,
-        skipped_access_log_methods,
-        replay_rate,
-        replay_entries,
-        configured_replay_rounds,
-    ) = match input {
-        RequestInput::Replay(replay, options, rounds, filtered, skipped_methods) => {
+    let prepared = match input {
+        RequestInput::Replay(replay) => {
+            let ReplayInput {
+                requests: replay,
+                options,
+                rounds,
+                filtered_entries: filtered,
+                skipped_methods,
+                skipped_records,
+            } = replay;
             let replay_entries = replay.len() as u64;
             if let Some(rounds) = rounds {
                 config.limit =
@@ -291,14 +297,15 @@ fn run_with_roots(
             } else {
                 sequence
             };
-            (
+            PreparedRun {
                 sequence,
-                filtered,
-                skipped_methods,
-                options.rate,
+                filtered_replay_entries: filtered,
+                skipped_access_log_methods: skipped_methods,
+                skipped_request_file_records: skipped_records,
+                replay_rate: options.rate,
                 replay_entries,
-                rounds,
-            )
+                configured_replay_rounds: rounds,
+            }
         }
         RequestInput::Single(options, stages) => {
             let request = ReplayRequest {
@@ -311,8 +318,8 @@ fn run_with_roots(
             };
             validate_request(&request).map_err(RunError::InvalidConfig)?;
             let bytes = target.replay_request(&request);
-            (
-                RequestSequence::new(
+            PreparedRun {
+                sequence: RequestSequence::new(
                     vec![EncodedRequest {
                         bytes,
                         method_uri_start: method_uri_start(
@@ -326,15 +333,16 @@ fn run_with_roots(
                     0,
                 )
                 .with_stages(&stages),
-                0,
-                Default::default(),
-                None,
-                0,
-                None,
-            )
+                filtered_replay_entries: 0,
+                skipped_access_log_methods: Default::default(),
+                skipped_request_file_records: Default::default(),
+                replay_rate: None,
+                replay_entries: 0,
+                configured_replay_rounds: None,
+            }
         }
-        RequestInput::Default(stages) => (
-            RequestSequence::new(
+        RequestInput::Default(stages) => PreparedRun {
+            sequence: RequestSequence::new(
                 vec![EncodedRequest {
                     bytes: target.request(config.method),
                     method_uri_start: method_uri_start(
@@ -348,13 +356,23 @@ fn run_with_roots(
                 0,
             )
             .with_stages(&stages),
-            0,
-            Default::default(),
-            None,
-            0,
-            None,
-        ),
+            filtered_replay_entries: 0,
+            skipped_access_log_methods: Default::default(),
+            skipped_request_file_records: Default::default(),
+            replay_rate: None,
+            replay_entries: 0,
+            configured_replay_rounds: None,
+        },
     };
+    let PreparedRun {
+        sequence: requests,
+        filtered_replay_entries,
+        skipped_access_log_methods,
+        skipped_request_file_records,
+        replay_rate,
+        replay_entries,
+        configured_replay_rounds,
+    } = prepared;
     let requests = Arc::new(requests);
     let addresses = target.resolve()?;
     let tls = target.tls_server_name().map(|server_name| TlsParameters {
@@ -393,6 +411,7 @@ fn run_with_roots(
     let finished = Instant::now();
     summary.filtered_replay_entries = filtered_replay_entries;
     summary.skipped_access_log_methods = skipped_access_log_methods;
+    summary.skipped_request_file_records = skipped_request_file_records;
     summary.configured_replay_rate = replay_rate;
     summary.replay_entries = replay_entries;
     summary.configured_replay_rounds = configured_replay_rounds;
@@ -452,13 +471,26 @@ fn validate_timestamps(
 enum RequestInput {
     Default(Vec<crate::ReplayStage>),
     Single(RequestOptions, Vec<crate::ReplayStage>),
-    Replay(
-        Vec<ReplayRequest>,
-        ReplayOptions,
-        Option<u64>,
-        u64,
-        std::collections::BTreeMap<String, u64>,
-    ),
+    Replay(ReplayInput),
+}
+
+struct ReplayInput {
+    requests: Vec<ReplayRequest>,
+    options: ReplayOptions,
+    rounds: Option<u64>,
+    filtered_entries: u64,
+    skipped_methods: std::collections::BTreeMap<String, u64>,
+    skipped_records: SkippedRecords,
+}
+
+struct PreparedRun {
+    sequence: RequestSequence,
+    filtered_replay_entries: u64,
+    skipped_access_log_methods: std::collections::BTreeMap<String, u64>,
+    skipped_request_file_records: SkippedRecords,
+    replay_rate: Option<u64>,
+    replay_entries: u64,
+    configured_replay_rounds: Option<u64>,
 }
 
 fn replay_seed() -> u64 {

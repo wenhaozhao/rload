@@ -137,6 +137,7 @@ pub struct RequestFileReplayOptions {
     pub replay: ReplayOptions,
     pub rounds: Option<u64>,
     pub schema: Option<PathBuf>,
+    pub skip_invalid_records: bool,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

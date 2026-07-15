@@ -156,6 +156,7 @@ fn request_file_api_accepts_timestamp_replay_without_schema() {
         },
         rounds: None,
         schema: None,
+        skip_invalid_records: false,
     };
 
     let summary =
@@ -214,6 +215,7 @@ fn timestamp_replay_reconnects_when_server_closes_an_idle_paced_connection() {
         },
         rounds: None,
         schema: None,
+        skip_invalid_records: false,
     };
 
     let result = run_request_file_with_run_options(config, &path, options, ReplayFilter::default());

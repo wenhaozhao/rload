@@ -197,6 +197,12 @@ method, URI, header, body, query-string, or validation rules. The `fields`
 object and every mapping in it are optional. When a mapping is omitted, rload
 uses the current top-level JSONL field extraction for that field.
 
+By default, loading is strict and any malformed or invalid record rejects the
+file. Use `--skip-invalid-records` to skip individual records so valid records
+in the same file can still be replayed. Text, beauty, and JSON results report
+the skipped-record total grouped by reason. A file containing no valid records
+is rejected.
+
 ```yaml
 schema_version: 1
 
