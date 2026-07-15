@@ -2,7 +2,7 @@
 
 All notable changes to rload are documented here.
 
-## [0.2.3] - Unreleased
+## [0.2.3] - 2026-07-15
 
 ### Added
 

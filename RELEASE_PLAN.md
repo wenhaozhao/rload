@@ -2,8 +2,9 @@
 
 ## Current status
 
-- `rload` 0.2.2 is the latest tagged release; the main branch is preparing
-  the 0.2.3 compatibility release.
+- `rload` 0.2.2 is the latest tagged release; `codex/v0.2.3` has passed the
+  local release and three-way benchmark gates for the 0.2.3 compatibility
+  release. Cross-platform CI remains required before tagging.
 - The package includes the standard license files and third-party notice.
 - The package metadata points to the public repository, homepage, and docs.rs.
 - `./scripts/release-check.sh` is the required local gate.
@@ -136,7 +137,7 @@ bring timestamp pacing to JSONL request files.
 The implementation was released as `v0.2.2` on 2026-07-14. The final
 validation report is `benchmarks/VALIDATION_2026-07-14_0.2.2-final.md`.
 
-## v0.2.3 planned work
+## v0.2.3 completed work
 
 This small compatibility release generalizes staged rate control without
 removing the existing replay-specific option name.
@@ -151,6 +152,10 @@ removing the existing replay-specific option name.
 5. Cover every input mode, custom ordinary requests, help text, option-order
    independence, conflicts, and compatibility behavior in CLI tests.
 6. Run the cross-platform CI and release gate before tagging `v0.2.3`.
+
+The local release gate and five-run three-way benchmark passed on 2026-07-15.
+See `benchmarks/VALIDATION_2026-07-15_0.2.3.md`. Linux and Windows CI remain
+pending until the branch is pushed.
 
 ## v0.3.0 preparation
 
@@ -227,7 +232,8 @@ raw result directories with the report.
 - [x] Review `LICENSE-MIT`, `LICENSE-APACHE`, and `THIRD_PARTY_NOTICES.md`.
 - [x] Update the version to 0.2.0 and run the final package gate.
 - [x] Tag `v0.2.2` and publish the changelog.
-- [ ] Complete the v0.2.3 release gate and tag `v0.2.3`.
+- [x] Complete the local v0.2.3 release and three-way benchmark gates.
+- [ ] Pass Linux, macOS, and Windows CI, then tag `v0.2.3`.
 - [ ] Freeze the v0.3.0 profile/assertion/report schemas.
 - [ ] Implement and validate the v0.3.0 vertical slice.
 

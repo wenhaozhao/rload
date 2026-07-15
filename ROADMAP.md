@@ -155,7 +155,7 @@ behavior.*
      hot path must not retain dynamic JSON values, resolve schema paths, or
      parse timestamp strings.
 
-### Maintenance: v0.2.3 - Generic Rate Stages and Version Output [In Progress]
+### Maintenance: v0.2.3 - Generic Rate Stages and Version Output [Ready for CI]
 
 *Focus: Reuse staged global pacing for ordinary requests while preserving the
 existing replay CLI.*
