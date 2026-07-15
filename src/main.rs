@@ -8,6 +8,7 @@ use rload::{
     MAX_REQUEST_BODY_BYTES, Method, ReplayFilter, ReplayOptions, ReplayOrder, ReplayRunOptions,
     ReplayStage, RequestFileReplayOptions, RequestOptions, RunConfig, RunLimit, RunSummary, run,
     run_access_log_with_run_options, run_request_file_with_run_options, run_with_request,
+    run_with_request_and_stages, run_with_stages,
 };
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -45,10 +46,13 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     let mut replay_timestamps = false;
     let mut replay_speed = 1.0;
     let mut replay_speed_was_set = false;
-    let mut replay_stages = Vec::new();
+    let mut stages = Vec::new();
+    let mut stages_were_set = false;
+    let mut replay_stages_were_set = false;
     let mut replay_rounds = None;
     let mut output_format = OutputFormat::Text;
     let mut output_beauty = false;
+    let mut version = false;
     let mut method = Method::Get;
     let mut method_was_set = false;
     let mut headers = Vec::new();
@@ -149,11 +153,16 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                 }
                 replay_speed_was_set = true;
             }
-            "--replay-stages" => {
+            "--stages" | "--replay-stages" => {
                 let value = args
                     .next()
-                    .ok_or_else(|| "--replay-stages requires a value".to_owned())?;
-                replay_stages = parse_replay_stages(&value)?;
+                    .ok_or_else(|| format!("{argument} requires a value"))?;
+                stages = parse_stages(&value, &argument)?;
+                if argument == "--stages" {
+                    stages_were_set = true;
+                } else {
+                    replay_stages_were_set = true;
+                }
             }
             "--replay-rounds" => {
                 let value = args
@@ -276,6 +285,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                 print_help();
                 return Ok(());
             }
+            "--version" => version = true,
             value if value.starts_with('-') => {
                 return Err(format!("unknown option: {value}"));
             }
@@ -285,6 +295,11 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                 }
             }
         }
+    }
+
+    if version {
+        println!("rload {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
     }
 
     if duration.is_some() && requests_were_set {
@@ -348,13 +363,14 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     if replay_timestamps && replay_order != ReplayOrder::Sequential {
         return Err("--replay-timestamps requires sequential replay order".into());
     }
-    if !replay_stages.is_empty() && access_log.is_none() && request_file.is_none() {
+    if stages_were_set && replay_stages_were_set {
+        return Err("--stages cannot be combined with --replay-stages".into());
+    }
+    if replay_stages_were_set && access_log.is_none() && request_file.is_none() {
         return Err("--replay-stages requires --access-log or --request-file".into());
     }
-    if !replay_stages.is_empty() && (replay_rate.is_some() || replay_timestamps) {
-        return Err(
-            "--replay-stages cannot be combined with --replay-rate or --replay-timestamps".into(),
-        );
+    if !stages.is_empty() && (replay_rate.is_some() || replay_timestamps) {
+        return Err("--stages cannot be combined with --replay-rate or --replay-timestamps".into());
     }
     if (!allowed_methods.is_empty() || !allowed_uris.is_empty())
         && access_log.is_none()
@@ -384,12 +400,13 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
         rate: replay_rate,
         timestamps: replay_timestamps,
         speed: replay_speed,
-        stages: replay_stages,
+        stages: stages.clone(),
     };
     let replay_filter = ReplayFilter {
         allowed_methods,
         allowed_uris,
     };
+    let is_replay = access_log.is_some() || request_file.is_some();
     let summary = match (access_log, request_file) {
         (Some(path), None) => run_access_log_with_run_options(
             config,
@@ -411,9 +428,15 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
             replay_filter,
         ),
         (None, None) if ordinary_request_was_set => {
-            run_with_request(config, RequestOptions { headers, body })
+            let options = RequestOptions { headers, body };
+            if stages.is_empty() {
+                run_with_request(config, options)
+            } else {
+                run_with_request_and_stages(config, options, stages)
+            }
         }
-        (None, None) => run(config),
+        (None, None) if stages.is_empty() => run(config),
+        (None, None) => run_with_stages(config, stages),
         (Some(_), Some(_)) => unreachable!("replay inputs are mutually exclusive"),
     }
     .map_err(|error| error.to_string())?;
@@ -422,7 +445,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
         return Ok(());
     }
     if output_format == OutputFormat::Beauty {
-        print_beauty(&summary, &replay_options, whitelist_was_set);
+        print_beauty(&summary, &replay_options, whitelist_was_set, is_replay);
         return Ok(());
     }
     let average_latency = summary.latencies.mean();
@@ -475,7 +498,11 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
             .map(|stage| format!("{:.3?}:{}", stage.duration, stage.rate))
             .collect::<Vec<_>>()
             .join(",");
-        println!("Replay stages: {profile}");
+        if is_replay {
+            println!("Replay stages: {profile}");
+        } else {
+            println!("Rate stages: {profile}");
+        }
     }
     if let Some(rate) = summary.configured_replay_rate {
         println!("Configured replay rate: {rate} requests/sec");
@@ -612,11 +639,14 @@ fn print_json(
             "estimated_requests": uri.estimated_requests,
             "maximum_error": uri.maximum_error,
         })).collect::<Vec<_>>(),
+        "pacing": {
+            "stages": &stages,
+        },
         "replay": {
             "configured_rate": summary.configured_replay_rate,
             "measured_rate": summary.configured_replay_rate.map(|_| summary.completed as f64 / summary.load_runtime.as_secs_f64()),
             "timestamp_speed": replay_options.timestamps.then_some(replay_options.speed),
-            "stages": stages,
+            "stages": &stages,
             "filtered_entries": whitelist_was_set.then_some(summary.filtered_replay_entries),
             "skipped_entries": skipped_total,
             "skipped_methods": summary.skipped_access_log_methods,
@@ -632,7 +662,12 @@ fn print_json(
     Ok(())
 }
 
-fn print_beauty(summary: &RunSummary, replay_options: &ReplayOptions, whitelist_was_set: bool) {
+fn print_beauty(
+    summary: &RunSummary,
+    replay_options: &ReplayOptions,
+    whitelist_was_set: bool,
+    is_replay: bool,
+) {
     println!("rload result");
     println!("============");
     println!();
@@ -701,7 +736,11 @@ fn print_beauty(summary: &RunSummary, replay_options: &ReplayOptions, whitelist_
         || summary.configured_replay_rounds.is_some()
     {
         println!();
-        println!("Replay");
+        if is_replay {
+            println!("Replay");
+        } else {
+            println!("Pacing");
+        }
         if replay_options.timestamps {
             println!("  Timestamp speed      {:>11.3}x", replay_options.speed);
         }
@@ -792,7 +831,8 @@ fn print_help() {
     println!("      --replay-rate <RPS>  Global replay request rate");
     println!("      --replay-timestamps  Pace access-log or JSONL replay by timestamps");
     println!("      --replay-speed <N>   Timestamp playback multiplier [default: 1.0]");
-    println!("      --replay-stages <D:R,...>  Timed replay-rate stages");
+    println!("      --stages <D:R,...>  Timed rate stages for ordinary or replay requests");
+    println!("      --replay-stages <D:R,...>  Compatibility alias for replay requests");
     println!("      --replay-rounds <N>  Replay the filtered sequence N complete times");
     println!("      --output-format <FORMAT>  text or json [default: text]");
     println!("      --output-beauty  Print a sectioned human-readable result");
@@ -803,6 +843,7 @@ fn print_help() {
     println!("      --allowed-methods <LIST>  Replay method whitelist, comma-separated");
     println!("      --allowed-uris <GLOBS>  Replay URI whitelist, comma-separated");
     println!("  -h, --help          Print help");
+    println!("      --version       Print version information");
 }
 
 fn parse_method(value: &str) -> Result<Method, String> {
@@ -822,19 +863,26 @@ fn comma_separated<'a>(value: &'a str, option: &str) -> Result<Vec<&'a str>, Str
     Ok(values)
 }
 
-fn parse_replay_stages(value: &str) -> Result<Vec<ReplayStage>, String> {
-    comma_separated(value, "--replay-stages")?
+fn parse_stages(value: &str, option: &str) -> Result<Vec<ReplayStage>, String> {
+    let stage_name = if option == "--replay-stages" {
+        "replay stage"
+    } else {
+        "rate stage"
+    };
+    comma_separated(value, option)?
         .into_iter()
         .map(|stage| {
             let (duration, rate) = stage
                 .split_once(':')
-                .ok_or_else(|| format!("invalid replay stage {stage}; expected DURATION:RPS"))?;
+                .ok_or_else(|| format!("invalid {stage_name} {stage}; expected DURATION:RPS"))?;
             let duration = parse_duration(duration)?;
             let rate = rate
                 .parse::<u64>()
-                .map_err(|_| format!("invalid replay stage rate: {rate}"))?;
+                .map_err(|_| format!("invalid {stage_name} rate: {rate}"))?;
             if duration.is_zero() || rate == 0 {
-                return Err("replay stage durations and rates must be greater than zero".into());
+                return Err(format!(
+                    "{stage_name} durations and rates must be greater than zero"
+                ));
             }
             Ok(ReplayStage { duration, rate })
         })

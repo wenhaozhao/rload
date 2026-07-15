@@ -1,6 +1,6 @@
 [package]
 name = "rload"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2024"
 default-run = "rload"
 description = "A Rust HTTP/1.1 load generator with Nginx access-log and JSONL replay"

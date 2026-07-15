@@ -113,7 +113,7 @@ human-readable reporting without changing benchmark defaults.*
   3. **[x] Optional Beauty Output**: Add `--output-beauty` while preserving the
      default text format and JSON schema version 1.
 
-### Maintenance: v0.2.2 - Replay Cycles and JSONL Timestamp Pacing [Planned]
+### Maintenance: v0.2.2 - Replay Cycles and JSONL Timestamp Pacing [Completed]
 *Focus: Make finite replay workloads explicit and extend timestamp pacing from
 Nginx access logs to structured JSONL exports without changing default replay
 behavior.*
@@ -154,6 +154,17 @@ behavior.*
      into the existing `ReplayRequest` representation. The request/response
      hot path must not retain dynamic JSON values, resolve schema paths, or
      parse timestamp strings.
+
+### Maintenance: v0.2.3 - Generic Rate Stages and Version Output [In Progress]
+
+*Focus: Reuse staged global pacing for ordinary requests while preserving the
+existing replay CLI.*
+
+* **Key Deliverables**:
+  1. **Generic staged pacing**: Add `--stages` for ordinary requests and both
+     replay inputs while retaining `--replay-stages` as a compatibility alias.
+  2. **Version discovery**: Add `--version` with stable stdout output suitable
+     for installation checks and packaging scripts.
 
 ---
 
