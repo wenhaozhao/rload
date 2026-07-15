@@ -15,6 +15,64 @@ fn line_ending_normalization_accepts_windows_fixtures() {
 }
 
 #[test]
+fn cli_prints_version_without_requiring_a_target() {
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .arg("--version")
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8(output.stdout).unwrap(), "rload 0.2.3\n");
+    assert!(output.stderr.is_empty());
+
+    for arguments in [["--version", "--unknown"], ["--unknown", "--version"]] {
+        let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+            .args(arguments)
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(
+            String::from_utf8(output.stderr)
+                .unwrap()
+                .contains("unknown option")
+        );
+    }
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--requests",
+            "1",
+            "--data",
+            "--version",
+            "http://127.0.0.1:1/",
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(
+        !String::from_utf8(output.stdout)
+            .unwrap()
+            .starts_with("rload ")
+    );
+}
+
+#[test]
+fn cli_help_describes_version_and_generic_stages() {
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .arg("--help")
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("--version"));
+    assert!(stdout.contains("--stages <D:R,...>"));
+    assert!(stdout.contains("ordinary or replay requests"));
+    assert!(stdout.contains("--replay-stages <D:R,...>"));
+    assert!(stdout.contains("Compatibility alias"));
+}
+
+#[test]
 fn cli_runs_http_load_and_prints_summary() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
@@ -68,6 +126,8 @@ fn cli_outputs_machine_readable_json_summary() {
         .args([
             "--requests",
             "1",
+            "--stages",
+            "1s:10",
             "--output-format",
             "json",
             &format!("http://{address}/json"),
@@ -90,6 +150,7 @@ fn cli_outputs_machine_readable_json_summary() {
     assert_eq!(result["http_statuses"]["201"], 1);
     assert!(result["latency"]["p99_us"].as_u64().is_some());
     assert_eq!(result["replay"]["configured_rate"], serde_json::Value::Null);
+    assert_eq!(result["pacing"]["stages"][0]["rate"], 10);
     server.join().unwrap();
 }
 
@@ -883,6 +944,176 @@ fn cli_applies_replay_rate_stages() {
 }
 
 #[test]
+fn cli_applies_rate_stages_to_an_ordinary_request() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut arrivals = Vec::new();
+        for _ in 0..3 {
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                let mut byte = [0];
+                stream.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            arrivals.push(Instant::now());
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        }
+        arrivals
+    });
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--requests",
+            "3",
+            "--connections",
+            "1",
+            "--stages",
+            "200ms:5,200ms:20",
+            &format!("http://{address}/"),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let arrivals = server.join().unwrap();
+    let baseline_gap = arrivals[1].duration_since(arrivals[0]);
+    let burst_gap = arrivals[2].duration_since(arrivals[1]);
+    assert!(
+        baseline_gap >= Duration::from_millis(150),
+        "baseline gap: {baseline_gap:?}"
+    );
+    assert!(
+        burst_gap < Duration::from_millis(150),
+        "burst gap: {burst_gap:?}"
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("Rate stages:"));
+}
+
+#[test]
+fn cli_applies_rate_stages_to_an_ordinary_custom_request() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = Vec::new();
+        while !request.ends_with(b"\r\n\r\n") {
+            let mut byte = [0];
+            stream.read_exact(&mut byte).unwrap();
+            request.push(byte[0]);
+        }
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+            .unwrap();
+        request
+    });
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--requests",
+            "1",
+            "--connections",
+            "1",
+            "--request",
+            "POST",
+            "--stages",
+            "1s:10",
+            &format!("http://{address}/items"),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(
+        server
+            .join()
+            .unwrap()
+            .starts_with(b"POST /items HTTP/1.1\r\n")
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("Rate stages:"));
+}
+
+#[test]
+fn cli_accepts_generic_stages_for_both_replay_inputs() {
+    for input_option in ["--access-log", "--request-file"] {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                let mut byte = [0];
+                stream.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        });
+        let path = env::temp_dir().join(format!(
+            "rload-generic-stages-{}-{}",
+            input_option.trim_start_matches('-'),
+            std::process::id()
+        ));
+        let contents = if input_option == "--access-log" {
+            "127.0.0.1 - - [date] \"GET / HTTP/1.1\" 200 0\n"
+        } else {
+            "{\"uri\":\"/\"}\n"
+        };
+        fs::write(&path, contents).unwrap();
+
+        let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+            .args([
+                "--requests",
+                "1",
+                "--connections",
+                "1",
+                "--stages",
+                "1s:10",
+                input_option,
+                path.to_str().unwrap(),
+                &format!("http://{address}/"),
+            ])
+            .output()
+            .unwrap();
+        fs::remove_file(path).unwrap();
+
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(String::from_utf8_lossy(&output.stdout).contains("Replay stages:"));
+        server.join().unwrap();
+    }
+}
+
+#[test]
+fn cli_rejects_stages_with_the_compatibility_alias() {
+    for options in [
+        ["--stages", "1s:10", "--replay-stages", "1s:10"],
+        ["--replay-stages", "1s:10", "--stages", "1s:10"],
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+            .args(options)
+            .arg("http://127.0.0.1:1/")
+            .output()
+            .unwrap();
+
+        assert!(!output.status.success());
+        let stderr = String::from_utf8(output.stderr).unwrap();
+        assert!(stderr.contains("--stages cannot be combined with --replay-stages"));
+    }
+}
+
+#[test]
 fn cli_rejects_invalid_replay_stages() {
     for arguments in [
         vec!["--replay-stages", "1s:0"],
@@ -900,6 +1131,31 @@ fn cli_rejects_invalid_replay_stages() {
             .output()
             .unwrap();
         assert!(!output.status.success());
+    }
+}
+
+#[test]
+fn cli_rejects_generic_stages_with_other_pacing_modes_in_any_order() {
+    for arguments in [
+        vec!["--stages", "1s:10", "--replay-rate", "10"],
+        vec!["--replay-rate", "10", "--stages", "1s:10"],
+        vec!["--stages", "1s:10", "--replay-timestamps"],
+        vec!["--replay-timestamps", "--stages", "1s:10"],
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+            .args(arguments)
+            .args([
+                "--access-log",
+                "/does/not/matter.log",
+                "http://127.0.0.1:1/",
+            ])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(
+            String::from_utf8_lossy(&output.stderr)
+                .contains("--stages cannot be combined with --replay-rate or --replay-timestamps")
+        );
     }
 }
 

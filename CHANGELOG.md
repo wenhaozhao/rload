@@ -2,6 +2,21 @@
 
 All notable changes to rload are documented here.
 
+## [0.2.3] - 2026-07-15
+
+### Added
+
+- Generic `--stages` rate profiles for ordinary requests, Nginx access-log
+  replay, and JSONL replay.
+- `--version` output for identifying the installed rload build.
+
+### Compatibility
+
+- `--replay-stages` remains supported for replay inputs. Supplying it together
+  with `--stages` is rejected before file or network I/O.
+- JSON schema v1 retains `replay.stages` and also exposes the same profile as
+  the additive, input-neutral `pacing.stages` field.
+
 ## [0.2.2] - 2026-07-14
 
 ### Added

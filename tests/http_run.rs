@@ -7,8 +7,9 @@ use std::time::{Duration, Instant};
 use std::{env, fs};
 
 use rload::{
-    Method, ReplayFilter, ReplayOptions, RequestFileReplayOptions, RunConfig, RunError, RunLimit,
-    run, run_request_file_with_run_options,
+    Method, ReplayFilter, ReplayOptions, ReplayStage, RequestFileReplayOptions, RequestOptions,
+    RunConfig, RunError, RunLimit, run, run_request_file_with_run_options,
+    run_with_request_and_stages, run_with_stages,
 };
 
 fn spawn_server(response: &'static [u8]) -> String {
@@ -532,6 +533,66 @@ fn run_rejects_invalid_limits_connections_threads_and_timeout() {
     ] {
         assert!(matches!(run(config), Err(RunError::InvalidConfig(_))));
     }
+}
+
+#[test]
+fn staged_request_apis_reject_invalid_profiles_before_network_io() {
+    let config = || RunConfig {
+        url: "http://127.0.0.1:1/".into(),
+        method: Method::Get,
+        limit: RunLimit::Requests(1),
+        connections: 1,
+        threads: 1,
+        timeout: Duration::from_secs(1),
+    };
+    let invalid = vec![ReplayStage {
+        duration: Duration::ZERO,
+        rate: 10,
+    }];
+
+    assert!(matches!(
+        run_with_stages(config(), invalid.clone()),
+        Err(RunError::InvalidConfig(_))
+    ));
+    assert!(matches!(
+        run_with_request_and_stages(config(), RequestOptions::default(), invalid),
+        Err(RunError::InvalidConfig(_))
+    ));
+}
+
+#[test]
+fn staged_request_apis_run_valid_profiles() {
+    let config = |url| RunConfig {
+        url,
+        method: Method::Get,
+        limit: RunLimit::Requests(1),
+        connections: 1,
+        threads: 1,
+        timeout: Duration::from_secs(1),
+    };
+    let stages = vec![ReplayStage {
+        duration: Duration::from_secs(1),
+        rate: 10,
+    }];
+
+    let summary = run_with_stages(
+        config(spawn_server(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n",
+        )),
+        stages.clone(),
+    )
+    .unwrap();
+    assert_eq!(summary.completed, 1);
+
+    let summary = run_with_request_and_stages(
+        config(spawn_server(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n",
+        )),
+        RequestOptions::default(),
+        stages,
+    )
+    .unwrap();
+    assert_eq!(summary.completed, 1);
 }
 
 #[test]

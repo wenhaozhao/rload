@@ -174,12 +174,16 @@ is mutually exclusive with `--replay-rate`; missing or decreasing timestamps
 are rejected. When the log cycles, the next round begins immediately because
 an interval from the final record back to the first is not present in the log.
 
-`--replay-stages <DURATION:RPS,...>` defines a timed rate profile, for example
-`--replay-stages 10s:100,5s:1000,10s:100` for a baseline, spike, and recovery.
-Stage transitions occur on the configured boundaries; after the profile ends,
-the final rate remains active. Stages work with sequential, shuffle, or random
-selection and with either replay input format. They are mutually exclusive with
-`--replay-rate` and `--replay-timestamps`.
+`--stages <DURATION:RPS,...>` defines a timed rate profile for ordinary requests
+or replay inputs, for example `--stages 10s:100,5s:1000,10s:100` for a baseline,
+spike, and recovery. Stage transitions occur on the configured boundaries;
+after the profile ends, the final rate remains active. Stages work with
+sequential, shuffle, or random replay selection and with either replay input
+format. They are mutually exclusive with `--replay-rate` and
+`--replay-timestamps`. The existing `--replay-stages` option remains available
+as a compatibility alias for replay inputs; do not specify both names.
+
+Use `--version` to print the installed rload version and exit.
 
 ### JSONL request schema
 

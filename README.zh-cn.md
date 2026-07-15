@@ -105,7 +105,9 @@ cargo run --release -- --duration 30s --request-file ./requests.jsonl \
 
 `--replay-timestamps` 保留相邻 Nginx 访问日志或 JSONL 时间戳之间的间隔。第一个请求会立即发送，而 `--replay-speed <N>` 会缩放随后的间隔（`2` 表示两倍速，`0.5` 表示半速）。访问日志接受标准 `$time_local` 值以及最高微秒精度的分数秒。JSONL 可以通过可选的 request schema 定义时间格式；未提供 schema 时，从顶层 `timestamp_micros`、`time` 或 `_time` 字段提取，并接受默认 Nginx 与 RFC3339 格式。时间戳模式要求顺序回放，并且与 `--replay-rate` 互斥；缺失或递减的时间戳将被拒绝。循环回放时不会添加输入中不存在的跨轮间隔。
 
-`--replay-stages <DURATION:RPS,...>` 定义了定时速率配置，例如 `--replay-stages 10s:100,5s:1000,10s:100` 表示基线、峰值和恢复三个阶段。阶段转换发生在配置的边界上；在配置结束之后，最后的速率将保持活跃。阶段回放可与顺序、洗牌或随机选择以及任一回放输入格式一起使用。它们与 `--replay-rate` 和 `--replay-timestamps` 互斥。
+`--stages <DURATION:RPS,...>` 为普通请求或回放输入定义定时速率配置，例如 `--stages 10s:100,5s:1000,10s:100` 表示基线、峰值和恢复三个阶段。阶段转换发生在配置的边界上；在配置结束之后，最后的速率将保持活跃。阶段可与顺序、洗牌或随机回放选择以及任一回放输入格式一起使用，并与 `--replay-rate` 和 `--replay-timestamps` 互斥。现有 `--replay-stages` 继续作为回放输入的兼容别名；两个名称不能同时使用。
+
+使用 `--version` 输出已安装的 rload 版本并退出。
 
 ### JSONL request schema
 

@@ -2,8 +2,9 @@
 
 ## Current status
 
-- `rload` 0.1.2 and 0.2.0 are published to crates.io; the main branch is now
-  tracking post-0.2.0 and 0.2.1 development work.
+- `rload` 0.2.2 is the latest tagged release; `codex/v0.2.3` has passed the
+  local release and three-way benchmark gates for the 0.2.3 compatibility
+  release. Cross-platform CI remains required before tagging.
 - The package includes the standard license files and third-party notice.
 - The package metadata points to the public repository, homepage, and docs.rs.
 - `./scripts/release-check.sh` is the required local gate.
@@ -92,7 +93,7 @@ Implementation and the local three-way validation gate were completed on
   `--output-format json` unchanged. Add golden and CLI tests for the beauty
   format without changing the benchmark execution path.
 
-## v0.2.2 planned work
+## v0.2.2 completed work
 
 The next replay-focused release will make finite replay cycles explicit and
 bring timestamp pacing to JSONL request files.
@@ -133,6 +134,72 @@ bring timestamp pacing to JSONL request files.
    `ReplayRequest` objects. No dynamic JSON traversal, schema lookup, or
    timestamp string parsing is permitted in the request/response hot path.
 
+The implementation was released as `v0.2.2` on 2026-07-14. The final
+validation report is `benchmarks/VALIDATION_2026-07-14_0.2.2-final.md`.
+
+## v0.2.3 completed work
+
+This small compatibility release generalizes staged rate control without
+removing the existing replay-specific option name.
+
+1. Add `--stages <DURATION:RPS,...>` for ordinary requests, access-log replay,
+   and JSONL replay, using the existing global `StagePacer` semantics.
+2. Retain `--replay-stages` as a compatibility alias restricted to replay
+   inputs; reject both names when supplied together.
+3. Preserve existing replay text anchors and JSON schema v1 while reporting
+   ordinary-request stages as rate stages.
+4. Add `--version`, printing `rload 0.2.3` to stdout without requiring a target.
+5. Cover every input mode, custom ordinary requests, help text, option-order
+   independence, conflicts, and compatibility behavior in CLI tests.
+6. Run the cross-platform CI and release gate before tagging `v0.2.3`.
+
+The local release gate and five-run three-way benchmark passed on 2026-07-15.
+See `benchmarks/VALIDATION_2026-07-15_0.2.3.md`. Linux and Windows CI remain
+pending until the branch is pushed.
+
+## v0.3.0 preparation
+
+The next release should be a CI-first usability release. Keep the existing
+CLI and replay engine as the source of truth, and make each new surface an
+adapter over the same validated run configuration and `RunSummary`.
+
+### Delivery order
+
+1. **Declarative profile loading**: define and validate `rload.yaml` v1;
+   preserve CLI behavior and make CLI overrides explicit.
+2. **Assertions**: add a small, typed `--assert` expression grammar over final
+   metrics; failed assertions must produce stable diagnostics and exit 1.
+3. **Standalone HTML report**: generate a self-contained report from JSON
+   results, with no effect on the benchmark execution path.
+4. **Prometheus export (stretch)**: implement only after the first three items
+   have stable schemas and a measured low-overhead snapshot design.
+
+### v0.3.0 acceptance gates
+
+- Existing 0.2.2 CLI, text output, JSON schema v1, replay semantics, and
+  cross-platform tests remain green.
+- A profile can express the documented static and replay workloads and fails
+  with line/field diagnostics for invalid combinations.
+- CLI and YAML assertions evaluate the same `RunSummary` metrics and return a
+  non-zero status on failure without changing measured load behavior.
+- HTML output is deterministic for a fixed JSON result and remains usable
+  offline as one file.
+- The three-way benchmark gate (`wrk`, latest release, development build)
+  shows no regression in throughput, latency, RSS, or replay overhead.
+- Release artifacts, changelog, README examples, website version, and package
+  metadata all report the same version.
+
+### Suggested implementation slices
+
+- `config.rs`: profile schema, duration/unit parsing, CLI override precedence,
+  and cross-field validation.
+- `assertions.rs`: lexer/parser/evaluator with unit-aware typed values and
+  focused error messages.
+- `report.rs`: versioned HTML data contract and deterministic renderer built
+  from the existing JSON result model.
+- CLI/integration tests first for each slice, then benchmark and platform
+  validation before changing the version.
+
 ## Deferred follow-up work
 
 - Re-run the wrk accuracy matrix on a dedicated or separate-server host. This is
@@ -164,7 +231,11 @@ raw result directories with the report.
 - [ ] Run the deferred independent-server accuracy matrix (post-release task).
 - [x] Review `LICENSE-MIT`, `LICENSE-APACHE`, and `THIRD_PARTY_NOTICES.md`.
 - [x] Update the version to 0.2.0 and run the final package gate.
-- [ ] Tag the release and publish the changelog.
+- [x] Tag `v0.2.2` and publish the changelog.
+- [x] Complete the local v0.2.3 release and three-way benchmark gates.
+- [ ] Pass Linux, macOS, and Windows CI, then tag `v0.2.3`.
+- [ ] Freeze the v0.3.0 profile/assertion/report schemas.
+- [ ] Implement and validate the v0.3.0 vertical slice.
 
 ## Automated release workflow
 

@@ -26,7 +26,19 @@ pub fn run(config: RunConfig) -> Result<RunSummary, RunError> {
     run_with_roots(
         config,
         RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned()),
-        RequestInput::Default,
+        RequestInput::Default(Vec::new()),
+    )
+}
+
+pub fn run_with_stages(
+    config: RunConfig,
+    stages: Vec<crate::ReplayStage>,
+) -> Result<RunSummary, RunError> {
+    validate_stages(&stages)?;
+    run_with_roots(
+        config,
+        RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned()),
+        RequestInput::Default(stages),
     )
 }
 
@@ -151,8 +163,44 @@ pub fn run_with_request(
     run_with_roots(
         config,
         RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned()),
-        RequestInput::Single(options),
+        RequestInput::Single(options, Vec::new()),
     )
+}
+
+pub fn run_with_request_and_stages(
+    config: RunConfig,
+    options: RequestOptions,
+    stages: Vec<crate::ReplayStage>,
+) -> Result<RunSummary, RunError> {
+    validate_stages(&stages)?;
+    run_with_roots(
+        config,
+        RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned()),
+        RequestInput::Single(options, stages),
+    )
+}
+
+fn validate_stages(stages: &[crate::ReplayStage]) -> Result<(), RunError> {
+    if stages
+        .iter()
+        .any(|stage| stage.duration.is_zero() || stage.rate == 0)
+    {
+        return Err(RunError::InvalidConfig(
+            "rate stages require positive durations and rates".into(),
+        ));
+    }
+    if stages
+        .iter()
+        .try_fold(Duration::ZERO, |total, stage| {
+            total.checked_add(stage.duration)
+        })
+        .is_none()
+    {
+        return Err(RunError::InvalidConfig(
+            "cumulative rate stage duration is too large".into(),
+        ));
+    }
+    Ok(())
 }
 
 fn validate_replay_options(options: &ReplayOptions, rounds: Option<u64>) -> Result<(), RunError> {
@@ -186,27 +234,7 @@ fn validate_replay_options(options: &ReplayOptions, rounds: Option<u64>) -> Resu
             "replay stages cannot be combined with fixed-rate or timestamp pacing".into(),
         ));
     }
-    if options
-        .stages
-        .iter()
-        .any(|stage| stage.duration.is_zero() || stage.rate == 0)
-    {
-        return Err(RunError::InvalidConfig(
-            "replay stages require positive durations and rates".into(),
-        ));
-    }
-    if options
-        .stages
-        .iter()
-        .try_fold(Duration::ZERO, |total, stage| {
-            total.checked_add(stage.duration)
-        })
-        .is_none()
-    {
-        return Err(RunError::InvalidConfig(
-            "cumulative replay stage duration is too large".into(),
-        ));
-    }
+    validate_stages(&options.stages)?;
     if !options.speed.is_finite() || options.speed <= 0.0 {
         return Err(RunError::InvalidConfig(
             "replay speed must be a finite number greater than zero".into(),
@@ -272,7 +300,7 @@ fn run_with_roots(
                 rounds,
             )
         }
-        RequestInput::Single(options) => {
+        RequestInput::Single(options, stages) => {
             let request = ReplayRequest {
                 method: config.method,
                 path: target.path().to_owned(),
@@ -296,7 +324,8 @@ fn run_with_roots(
                     }],
                     ReplayOrder::Sequential,
                     0,
-                ),
+                )
+                .with_stages(&stages),
                 0,
                 Default::default(),
                 None,
@@ -304,7 +333,7 @@ fn run_with_roots(
                 None,
             )
         }
-        RequestInput::Default => (
+        RequestInput::Default(stages) => (
             RequestSequence::new(
                 vec![EncodedRequest {
                     bytes: target.request(config.method),
@@ -317,7 +346,8 @@ fn run_with_roots(
                 }],
                 ReplayOrder::Sequential,
                 0,
-            ),
+            )
+            .with_stages(&stages),
             0,
             Default::default(),
             None,
@@ -420,8 +450,8 @@ fn validate_timestamps(
 }
 
 enum RequestInput {
-    Default,
-    Single(RequestOptions),
+    Default(Vec<crate::ReplayStage>),
+    Single(RequestOptions, Vec<crate::ReplayStage>),
     Replay(
         Vec<ReplayRequest>,
         ReplayOptions,
@@ -489,7 +519,7 @@ mod tests {
             timeout: Duration::from_secs(2),
         };
 
-        let summary = run_with_roots(config, roots, RequestInput::Default).unwrap();
+        let summary = run_with_roots(config, roots, RequestInput::Default(Vec::new())).unwrap();
 
         assert_eq!(summary.completed, 2);
         assert_eq!(summary.response_body_bytes, 4);
@@ -527,7 +557,11 @@ mod tests {
         };
 
         assert!(matches!(
-            run_with_roots(config, RootCertStore::empty(), RequestInput::Default),
+            run_with_roots(
+                config,
+                RootCertStore::empty(),
+                RequestInput::Default(Vec::new()),
+            ),
             Err(RunError::Io(_) | RunError::Tls(_))
         ));
         assert!(server.join().unwrap());
