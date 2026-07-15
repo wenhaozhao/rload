@@ -2,9 +2,9 @@
 
 ## Current status
 
-- `rload` 0.2.2 is the latest tagged release; `codex/v0.2.3` has passed the
-  local release and three-way benchmark gates for the 0.2.3 compatibility
-  release. Cross-platform CI remains required before tagging.
+- `rload` 0.2.3 is the latest tagged release; `codex/v0.2.4` has passed the
+  local release gate for the tolerant JSONL loading release. Cross-platform CI
+  remains required before tagging.
 - The package includes the standard license files and third-party notice.
 - The package metadata points to the public repository, homepage, and docs.rs.
 - `./scripts/release-check.sh` is the required local gate.
@@ -157,6 +157,20 @@ The local release gate and five-run three-way benchmark passed on 2026-07-15.
 See `benchmarks/VALIDATION_2026-07-15_0.2.3.md`. Linux and Windows CI remain
 pending until the branch is pushed.
 
+## v0.2.4 completed work
+
+This maintenance release makes tolerant JSONL loading explicit and observable.
+
+1. Add opt-in `--skip-invalid-records` behavior for JSONL request files while
+   preserving strict loading by default.
+2. Continue loading valid records and aggregate skipped records by validation
+   reason; reject files containing no valid records.
+3. Report skipped JSONL totals and reasons in text, beauty, and JSON output.
+4. Model replay preparation and skipped-record accounting with named structs
+   and the `SkippedRecords` newtype instead of positional tuples and raw maps.
+5. Cover strict and tolerant loading, CLI validation, summaries, formatting,
+   Clippy, tests, release builds, and package contents before tagging.
+
 ## v0.3.0 preparation
 
 The next release should be a CI-first usability release. Keep the existing
@@ -234,6 +248,8 @@ raw result directories with the report.
 - [x] Tag `v0.2.2` and publish the changelog.
 - [x] Complete the local v0.2.3 release and three-way benchmark gates.
 - [ ] Pass Linux, macOS, and Windows CI, then tag `v0.2.3`.
+- [x] Complete the local v0.2.4 release gate and package verification.
+- [ ] Pass Linux, macOS, and Windows CI, then tag `v0.2.4`.
 - [ ] Freeze the v0.3.0 profile/assertion/report schemas.
 - [ ] Implement and validate the v0.3.0 vertical slice.
 

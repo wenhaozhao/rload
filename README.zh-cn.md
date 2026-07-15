@@ -117,6 +117,8 @@ cargo run --release -- --duration 30s --request-file ./requests.jsonl \
 
 `--request-schema <FILE>` 为嵌套 JSONL 记录配置字段抽取路径。顶层 `fields` 对象及其中每个映射都是可选的；省略时，该字段继续使用当前顶层字段抽取逻辑。schema 只改变抽取路径，不改变字段默认值或现有校验规则。
 
+默认情况下 JSONL 严格加载，任意格式错误或校验失败的记录都会拒绝整个文件。使用 `--skip-invalid-records` 后，单条错误记录会被跳过，同一文件中的有效记录仍会继续回放。文本、beauty 和 JSON 结果会按原因汇总跳过数量；如果文件中没有任何有效记录，则仍会拒绝加载。
+
 ```yaml
 schema_version: 1
 fields:

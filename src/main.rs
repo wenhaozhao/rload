@@ -39,6 +39,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     let mut access_log = None;
     let mut request_file = None;
     let mut request_schema = None;
+    let mut skip_invalid_records = false;
     let mut replay_order = ReplayOrder::Sequential;
     let mut replay_option_was_set = false;
     let mut seed = None;
@@ -101,6 +102,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                         .ok_or_else(|| "--request-schema requires a file path".to_owned())?,
                 );
             }
+            "--skip-invalid-records" => skip_invalid_records = true,
             "--replay-order" => {
                 let value = args
                     .next()
@@ -317,6 +319,9 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     if request_schema.is_some() && request_file.is_none() {
         return Err("--request-schema requires --request-file".into());
     }
+    if skip_invalid_records && request_file.is_none() {
+        return Err("--skip-invalid-records requires --request-file".into());
+    }
     if replay_rounds.is_some() && access_log.is_none() && request_file.is_none() {
         return Err("--replay-rounds requires --access-log or --request-file".into());
     }
@@ -424,6 +429,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                 replay: replay_options.clone(),
                 rounds: replay_rounds,
                 schema: request_schema.map(Into::into),
+                skip_invalid_records,
             },
             replay_filter,
         ),
@@ -539,6 +545,13 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
             println!("  {method:<5} {count:>8} unsupported method");
         }
     }
+    let skipped_request_file_records = summary.skipped_request_file_records.total();
+    if skipped_request_file_records > 0 {
+        println!("JSONL records skipped: {skipped_request_file_records}");
+        for (reason, count) in summary.skipped_request_file_records.iter() {
+            println!("  {count:>8} {reason}");
+        }
+    }
     println!("Method Statistics");
     for method in Method::ALL {
         let name = method.as_str();
@@ -603,6 +616,7 @@ fn print_json(
         })
         .collect::<Vec<_>>();
     let skipped_total: u64 = summary.skipped_access_log_methods.values().sum();
+    let skipped_request_file_total = summary.skipped_request_file_records.total();
     let result = serde_json::json!({
         "schema_version": 1,
         "summary": {
@@ -650,6 +664,10 @@ fn print_json(
             "filtered_entries": whitelist_was_set.then_some(summary.filtered_replay_entries),
             "skipped_entries": skipped_total,
             "skipped_methods": summary.skipped_access_log_methods,
+            "skipped_request_file_records": {
+                "total": skipped_request_file_total,
+                "reasons": summary.skipped_request_file_records.iter().collect::<std::collections::BTreeMap<_, _>>(),
+            },
             "entries": summary.replay_entries,
             "configured_rounds": summary.configured_replay_rounds,
             "completed_rounds": summary.completed_replay_rounds,
@@ -780,6 +798,13 @@ fn print_beauty(
                 println!("    {method:<7} {count:>10} unsupported");
             }
         }
+        let skipped_jsonl = summary.skipped_request_file_records.total();
+        if skipped_jsonl > 0 {
+            println!("  JSONL skipped        {skipped_jsonl:>12}");
+            for (reason, count) in summary.skipped_request_file_records.iter() {
+                println!("    {count:>10} {reason}");
+            }
+        }
     }
 
     println!();
@@ -826,6 +851,7 @@ fn print_help() {
     println!("      --access-log <FILE>  Replay GET/HEAD requests from an Nginx access log");
     println!("      --request-file <FILE>  Replay structured requests from a JSONL file");
     println!("      --request-schema <FILE>  Map JSONL fields with a YAML schema");
+    println!("      --skip-invalid-records  Skip invalid JSONL records while loading");
     println!("      --replay-order <ORDER>  sequential, shuffle, or random [default: sequential]");
     println!("      --seed <N>       Reproducible seed for shuffle or random replay");
     println!("      --replay-rate <RPS>  Global replay request rate");

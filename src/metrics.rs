@@ -2,6 +2,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::request_file::SkippedRecords;
+
 use hdrhistogram::Histogram;
 
 use crate::Method;
@@ -273,6 +275,7 @@ pub struct RunSummary {
     pub coordinated_omission_interval: Option<Duration>,
     pub filtered_replay_entries: u64,
     pub skipped_access_log_methods: BTreeMap<String, u64>,
+    pub skipped_request_file_records: SkippedRecords,
     pub configured_replay_rate: Option<u64>,
     pub replay_entries: u64,
     pub configured_replay_rounds: Option<u64>,
@@ -297,6 +300,7 @@ impl Default for RunSummary {
             coordinated_omission_interval: None,
             filtered_replay_entries: 0,
             skipped_access_log_methods: BTreeMap::new(),
+            skipped_request_file_records: SkippedRecords::default(),
             configured_replay_rate: None,
             replay_entries: 0,
             configured_replay_rounds: None,
@@ -319,6 +323,8 @@ impl RunSummary {
         for (method, count) in other.skipped_access_log_methods {
             *self.skipped_access_log_methods.entry(method).or_default() += count;
         }
+        self.skipped_request_file_records
+            .merge(&other.skipped_request_file_records);
         self.latencies.merge(&other.latencies);
         for (method, other) in self
             .method_summaries

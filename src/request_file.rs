@@ -64,6 +64,43 @@ struct CompiledTimestamp {
     format: Option<String>,
 }
 
+#[derive(Debug)]
+pub(crate) struct RequestFileReplay {
+    pub(crate) requests: Vec<ReplayRequest>,
+    pub(crate) skipped_records: SkippedRecords,
+}
+
+#[derive(Debug, Default)]
+pub struct SkippedRecords(BTreeMap<String, u64>);
+
+impl SkippedRecords {
+    pub(crate) fn record(&mut self, reason: String) {
+        *self.0.entry(reason).or_default() += 1;
+    }
+
+    pub(crate) fn merge(&mut self, other: &Self) {
+        for (reason, count) in other.iter() {
+            *self.0.entry(reason.clone()).or_default() += count;
+        }
+    }
+
+    pub fn total(&self) -> u64 {
+        self.0.values().sum()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &u64)> {
+        self.0.iter()
+    }
+}
+
+impl std::ops::Deref for RequestFileReplay {
+    type Target = [ReplayRequest];
+
+    fn deref(&self) -> &Self::Target {
+        &self.requests
+    }
+}
+
 #[derive(Deserialize)]
 struct JsonRequest {
     #[serde(default)]
@@ -81,56 +118,85 @@ pub(crate) fn read(
     path: &Path,
     schema_path: Option<&Path>,
     timestamps: bool,
-) -> Result<Vec<ReplayRequest>, RunError> {
+    skip_invalid_records: bool,
+) -> Result<RequestFileReplay, RunError> {
     let file = File::open(path)?;
     if let Some(schema_path) = schema_path {
         let schema = compile_schema(schema_path)?;
-        read_records(&mut BufReader::new(file), &schema, timestamps)
+        read_records(
+            &mut BufReader::new(file),
+            &schema,
+            timestamps,
+            skip_invalid_records,
+        )
     } else if !timestamps {
-        read_from(BufReader::new(file))
+        read_from(BufReader::new(file), skip_invalid_records)
     } else {
         read_records(
             &mut BufReader::new(file),
             &CompiledSchema::default(),
             timestamps,
+            skip_invalid_records,
         )
     }
 }
 
-fn read_from(mut reader: impl BufRead) -> Result<Vec<ReplayRequest>, RunError> {
-    decode_records(&mut reader, |line, line_number| {
-        let request: JsonRequest = serde_json::from_str(line)
-            .map_err(|error| invalid(line_number, &format!("invalid JSON: {error}")))?;
-        validate(request, line_number)
-    })
+fn read_from(
+    mut reader: impl BufRead,
+    skip_invalid_records: bool,
+) -> Result<RequestFileReplay, RunError> {
+    decode_records(
+        &mut reader,
+        |line, line_number| {
+            let request: JsonRequest = serde_json::from_str(line)
+                .map_err(|error| invalid(line_number, &format!("invalid JSON: {error}")))?;
+            validate(request, line_number)
+        },
+        skip_invalid_records,
+    )
 }
 
 fn read_records(
     reader: &mut impl BufRead,
     schema: &CompiledSchema,
     timestamps: bool,
-) -> Result<Vec<ReplayRequest>, RunError> {
+    skip_invalid_records: bool,
+) -> Result<RequestFileReplay, RunError> {
     let timestamps = timestamps || schema.timestamp.is_some();
-    decode_records(reader, |line, line_number| {
-        let value: Value = serde_json::from_str(line)
-            .map_err(|error| invalid(line_number, &format!("invalid JSON: {error}")))?;
-        validate_value(&value, schema, line_number, timestamps)
-    })
+    decode_records(
+        reader,
+        |line, line_number| {
+            let value: Value = serde_json::from_str(line)
+                .map_err(|error| invalid(line_number, &format!("invalid JSON: {error}")))?;
+            validate_value(&value, schema, line_number, timestamps)
+        },
+        skip_invalid_records,
+    )
 }
 
 fn decode_records(
     reader: &mut impl BufRead,
     mut decode: impl FnMut(&str, usize) -> Result<ReplayRequest, RunError>,
-) -> Result<Vec<ReplayRequest>, RunError> {
+    skip_invalid_records: bool,
+) -> Result<RequestFileReplay, RunError> {
     let mut requests = Vec::new();
+    let mut skipped_records = SkippedRecords::default();
     let mut line_number = 0;
     while let Some(line) = read_line(reader, &mut line_number)? {
         if line.trim().is_empty() {
             continue;
         }
-        requests.push(decode(&line, line_number)?);
+        match decode(&line, line_number) {
+            Ok(request) => requests.push(request),
+            Err(RunError::InvalidRequestFile(message)) if skip_invalid_records => {
+                let prefix = format!("line {line_number}: ");
+                let reason = message.strip_prefix(&prefix).unwrap_or(&message).to_owned();
+                skipped_records.record(reason);
+            }
+            Err(error) => return Err(error),
+        }
     }
-    finish_requests(requests)
+    finish_requests(requests, skipped_records)
 }
 
 fn read_line(
@@ -160,13 +226,22 @@ fn read_line(
         .map_err(|_| invalid(*line_number, "record is not valid UTF-8"))
 }
 
-fn finish_requests(requests: Vec<ReplayRequest>) -> Result<Vec<ReplayRequest>, RunError> {
+fn finish_requests(
+    requests: Vec<ReplayRequest>,
+    skipped_records: SkippedRecords,
+) -> Result<RequestFileReplay, RunError> {
     if requests.is_empty() {
-        return Err(RunError::InvalidRequestFile(
-            "request file contains no requests".into(),
-        ));
+        let skipped = skipped_records.total();
+        return Err(RunError::InvalidRequestFile(if skipped == 0 {
+            "request file contains no requests".into()
+        } else {
+            format!("request file contains no valid requests; skipped {skipped} records")
+        }));
     }
-    Ok(requests)
+    Ok(RequestFileReplay {
+        requests,
+        skipped_records,
+    })
 }
 
 fn compile_schema(path: &Path) -> Result<CompiledSchema, RunError> {
@@ -572,7 +647,7 @@ mod tests {
     fn defaults_method_and_appends_args_while_ignoring_unknown_fields() {
         let input = br#"{"method":null,"uri":"/items","args":"a=1&b=2","extra":true}
 "#;
-        let requests = read_from(std::io::Cursor::new(input)).unwrap();
+        let requests = read_from(std::io::Cursor::new(input), false).unwrap();
 
         assert_eq!(requests[0].method, Method::Get);
         assert_eq!(requests[0].path, "/items?a=1&b=2");
@@ -583,7 +658,7 @@ mod tests {
         let input = br#"{"uri":"/items","time":{"business":true}}
 "#;
 
-        let requests = read_from(std::io::Cursor::new(input)).unwrap();
+        let requests = read_from(std::io::Cursor::new(input), false).unwrap();
 
         assert_eq!(requests[0].timestamp_micros, None);
     }
@@ -603,9 +678,10 @@ mod tests {
 
     #[test]
     fn accepts_exported_application_log_fixture() {
-        let requests = read_from(std::io::Cursor::new(include_bytes!(
-            "../tests/fixtures/exported-requests.jsonl"
-        )))
+        let requests = read_from(
+            std::io::Cursor::new(include_bytes!("../tests/fixtures/exported-requests.jsonl")),
+            false,
+        )
         .unwrap();
 
         assert_eq!(requests.len(), 2);
@@ -654,7 +730,7 @@ mod tests {
     fn rejects_oversized_record_before_json_parsing() {
         let input = vec![b'x'; MAX_LINE_BYTES as usize + 1];
 
-        let error = read_from(std::io::Cursor::new(input)).unwrap_err();
+        let error = read_from(std::io::Cursor::new(input), false).unwrap_err();
 
         assert!(error.to_string().contains("line 1"));
         assert!(error.to_string().contains("exceeds 1 MiB"));
@@ -670,6 +746,7 @@ mod tests {
             &mut std::io::Cursor::new(input),
             &CompiledSchema::default(),
             true,
+            false,
         )
         .unwrap();
 
@@ -692,6 +769,7 @@ mod tests {
             ),
             &schema,
             false,
+            false,
         )
         .unwrap();
 
@@ -705,6 +783,22 @@ mod tests {
 
         assert!(error.to_string().contains("expected format `%+`"));
         assert!(!error.to_string().contains("expected Nginx or RFC3339"));
+    }
+
+    #[test]
+    fn skips_invalid_jsonl_records_and_counts_reasons() {
+        let input = b"{\"uri\":\"/ok\"}\n{\"uri\":12}\n{not-json}\n";
+        let replay = read_from(&input[..], true).unwrap();
+        assert_eq!(replay.requests.len(), 1);
+        assert_eq!(replay.skipped_records.total(), 2);
+        assert_eq!(replay.skipped_records.iter().count(), 2);
+        assert!(
+            replay
+                .skipped_records
+                .iter()
+                .map(|(reason, _)| reason)
+                .any(|reason| reason.starts_with("invalid JSON:"))
+        );
     }
 
     #[test]
