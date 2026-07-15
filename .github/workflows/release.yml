@@ -206,7 +206,7 @@ jobs:
           git commit -m "Update rload to ${version}" || exit 0
           git push origin main
 
-      - name: Update website version
+      - name: Update website and docs version
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -220,16 +220,41 @@ jobs:
           from pathlib import Path
           import re, sys
           version = sys.argv[1]
-          path = Path("website/index.html")
-          text = path.read_text()
-          text = re.sub(r'\b\d+\.\d+\.\d+ 最新版本', f'{version} 最新版本', text)
-          text = re.sub(r'rload \d+\.\d+\.\d+', f'rload {version}', text)
-          path.write_text(text)
+          
+          # Update website/index.html
+          path_en = Path("website/index.html")
+          text_en = path_en.read_text()
+          text_en = re.sub(r'Latest Stable v\d+\.\d+\.\d+', f'Latest Stable v{version}', text_en)
+          text_en = re.sub(r'rload v\d+\.\d+\.\d+', f'rload v{version}', text_en)
+          text_en = re.sub(r'rload \d+\.\d+\.\d+', f'rload {version}', text_en)
+          path_en.write_text(text_en)
+          
+          # Update website/index.zh-cn.html
+          path_cn = Path("website/index.zh-cn.html")
+          text_cn = path_cn.read_text()
+          text_cn = re.sub(r'最新稳定版 v\d+\.\d+\.\d+', f'最新稳定版 v{version}', text_cn)
+          text_cn = re.sub(r'rload v\d+\.\d+\.\d+', f'rload v{version}', text_cn)
+          text_cn = re.sub(r'rload \d+\.\d+\.\d+', f'rload {version}', text_cn)
+          path_cn.write_text(text_cn)
+
+          # Update docs/user_guide.md
+          path_g_en = Path("docs/user_guide.md")
+          if path_g_en.exists():
+              text_g_en = path_g_en.read_text()
+              text_g_en = re.sub(r'rload-v\d+\.\d+\.\d+', f'rload-v{version}', text_g_en)
+              path_g_en.write_text(text_g_en)
+
+          # Update docs/user_guide_zh-cn.md
+          path_g_cn = Path("docs/user_guide_zh-cn.md")
+          if path_g_cn.exists():
+              text_g_cn = path_g_cn.read_text()
+              text_g_cn = re.sub(r'rload-v\d+\.\d+\.\d+', f'rload-v{version}', text_g_cn)
+              path_g_cn.write_text(text_g_cn)
           PY
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add website/index.html
-          git commit -m "Update website for rload ${version}" || exit 0
+          git add website/index.html website/index.zh-cn.html docs/user_guide.md docs/user_guide_zh-cn.md
+          git commit -m "Update website and docs for rload ${version}" || exit 0
           git push origin HEAD:main
 
       - name: Deploy updated website

@@ -3,7 +3,7 @@ name: Deploy rload website
 on:
   push:
     branches: [main]
-    paths: ["website/**", ".github/workflows/pages.yml"]
+    paths: ["website/**", "docs/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -24,6 +24,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      - name: Copy docs to website directory
+        run: |
+          mkdir -p website/docs
+          cp -r docs/* website/docs/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: website
