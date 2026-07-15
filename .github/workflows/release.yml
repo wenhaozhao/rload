@@ -33,6 +33,9 @@ jobs:
           - os: macos-14
             target: aarch64-apple-darwin
             archive: tar.gz
+          - os: macos-13
+            target: x86_64-apple-darwin
+            archive: tar.gz
           - os: windows-2022
             target: x86_64-pc-windows-msvc
             archive: zip
@@ -150,28 +153,37 @@ jobs:
           release_base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}"
           linux_archive="rload-${version}-x86_64-unknown-linux-gnu.tar.gz"
           macos_archive="rload-${version}-aarch64-apple-darwin.tar.gz"
+          macos_intel_archive="rload-${version}-x86_64-apple-darwin.tar.gz"
           linux_url="${release_base}/${linux_archive}"
           macos_url="${release_base}/${macos_archive}"
+          macos_intel_url="${release_base}/${macos_intel_archive}"
           linux_sha256="$(curl -fsSL "${linux_url}.sha256" | awk '{print $1}')"
           macos_sha256="$(curl -fsSL "${macos_url}.sha256" | awk '{print $1}')"
+          macos_intel_sha256="$(curl -fsSL "${macos_intel_url}.sha256" | awk '{print $1}')"
           test "${#linux_sha256}" = 64
           test "${#macos_sha256}" = 64
+          test "${#macos_intel_sha256}" = 64
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/${TAP_REPOSITORY}.git" /tmp/homebrew-rload
           cd /tmp/homebrew-rload
-          python3 - "$version" "$linux_url" "$linux_sha256" "$macos_url" "$macos_sha256" <<'PY'
+          python3 - "$version" "$linux_url" "$linux_sha256" "$macos_url" "$macos_sha256" "$macos_intel_url" "$macos_intel_sha256" <<'PY'
           from pathlib import Path
           import sys
-          version, linux_url, linux_sha256, macos_url, macos_sha256 = sys.argv[1:]
+          version, linux_url, linux_sha256, macos_url, macos_sha256, macos_intel_url, macos_intel_sha256 = sys.argv[1:]
           path = Path("Formula/rload.rb")
           path.write_text(f'''class Rload < Formula
   desc "Rust HTTP load generator with Nginx access-log and JSONL replay"
   homepage "https://wenhaozhao.github.io/rload/"
   license any_of: ["MIT", "Apache-2.0"]
 
-  on_macos do
-    url "{macos_url}"
-    sha256 "{macos_sha256}"
-  end
+          on_arm do
+            url "{macos_url}"
+            sha256 "{macos_sha256}"
+          end
+
+          on_intel do
+            url "{macos_intel_url}"
+            sha256 "{macos_intel_sha256}"
+          end
 
   on_linux do
     url "{linux_url}"
