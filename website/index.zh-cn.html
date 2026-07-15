@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="rload：Rust 原生高性能 HTTP 压测与高保真真实流量回放引擎">
+  <title>rload 0.2.2 · Replay reality. Find the limit.</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- 头部导航栏 -->
+  <header class="nav wrap" id="header">
+    <a class="logo" href="#top">
+      <img src="logo.png" alt="rload logo" class="logo-img">
+      <span>rload</span>
+    </a>
+    <nav>
+      <a href="#features">核心功能</a>
+      <a href="#compare">对比优势</a>
+      <a href="#install">安装指引</a>
+      <a href="./index.html" class="lang-switch">EN</a>
+      <a class="nav-cta" href="https://github.com/wenhaozhao/rload/releases">Releases ↗</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <!-- Hero 视觉区 -->
+    <section class="hero wrap" id="hero-section">
+      <div class="hero-content">
+        <p class="eyebrow"><i></i> RUST-NATIVE HTTP TRAFFIC REPLAY</p>
+        <h1>回放真实流量。<br><em>找到系统极限。</em></h1>
+        <p class="lead">rload 是一个兼容 wrk 核心语义的 Rust 压测引擎。用 3.5MB 内存，高保真流式回放百万级 Nginx 日志与结构化 JSONL，精确揭示高并发下的系统瓶颈。</p>
+        <div class="actions">
+          <a class="button primary" href="#install">立即安装 ↓</a>
+          <a class="button" href="https://github.com/wenhaozhao/rload" target="_blank" rel="noopener noreferrer">GitHub 源码 ↗</a>
+        </div>
+        <p class="meta">最新稳定版 v0.2.2　·　MIT / Apache-2.0 双协议　·　Rust 1.96+ / 零依赖</p>
+      </div>
+
+      <!-- 仿真终端效果 -->
+      <div class="terminal" id="terminal-preview">
+        <div class="term-head">
+          <span>●</span><span>●</span><span>●</span>
+          <b>rload v0.2.2</b>
+        </div>
+        <pre><code><em>$</em> rload -t 4 -c 200 -d 30s \<br>  --log-replay access.log \<br>  --log-order shuffle --seed 42 \<br>  http://staging-api.internal<br><br>Running 30s test @ http://staging-api.internal<br>  4 threads and 200 connections<br><br><strong>Thread Stats</strong>   Avg      Max     +/- Stdev<br>  Latency     2.18ms   18.74ms    84.32%<br>  Req/Sec    12.45k   15.92k     76.10%<br><br>  <strong>1482701</strong> requests in 30.00s, <strong>3.24GB</strong> read<br><strong>Requests/sec:</strong>　49,423.36<br><strong>Average latency:</strong> 2.18ms<br><strong>99% Latency:</strong>　　 8.12ms<br><strong>Socket errors:</strong> connect 0, read 0, write 0, timeout 0<br><br><mark>● log replay complete (shuffled, seed: 42)</mark></code></pre>
+      </div>
+    </section>
+
+    <!-- 滚动丝带 -->
+    <div class="ribbon" id="feature-ribbon">
+      <div class="wrap">
+        <span>WRK SEMANTICS PARITY</span>
+        <span>·</span>
+        <span>NGINX ACCESS LOG REPLAY</span>
+        <span>·</span>
+        <span>STRUCTURED JSONL REPLAY</span>
+        <span>·</span>
+        <span>COORDINATED OMISSION PREVENTION</span>
+        <span>·</span>
+        <span>STABLE STATIC BINARY</span>
+      </div>
+    </div>
+
+    <!-- 01 核心功能区 -->
+    <section id="features" class="section wrap">
+      <p class="eyebrow">01 / 核心能力</p>
+      <h2>从单点压测，<br><em>进化到生产级真实流量回放。</em></h2>
+      <p class="section-lead">传统的循环刷单 URL 无法暴露真实瓶颈。rload 让每一笔请求、每一个入参和调用顺序都源于真实环境，且完全幂等可复现。</p>
+      
+      <div class="cards" id="feature-cards">
+        <article class="card dark">
+          <small>01 / HIGH FIDELITY</small>
+          <h3>Nginx 访问日志高保真回放</h3>
+          <p>原生流式解析 Common/Combined Nginx 日志，无需编写任何 Lua 脚本。支持顺序、洗牌（Shuffle）和随机三种回放模式。</p>
+          <code>--log-replay access.log --log-order shuffle --seed 42</code>
+        </article>
+        
+        <article class="card">
+          <small>02 / CUSTOM PAYLOADS</small>
+          <h3>结构化 JSONL 请求回放</h3>
+          <p>支持回放包含自定义 Method、Headers、和 UTF-8 Body 的结构化 JSON 列表。通过高精度时间轮优雅模拟真实用户请求间隔。</p>
+          <code>--request-file queries.jsonl --replay-timestamps</code>
+        </article>
+        
+        <article class="card">
+          <small>03 / PERFORMANCE PARITY</small>
+          <h3>与 wrk 性能及指标绝对对齐</h3>
+          <p>基于 Bare-metal 裸 <code>mio</code> 实现多工作线程绑核模型。实测常驻内存仅 3.5MB，吞吐量 RPS 相比 wrk 误差低于 1%，零调度器额外噪声。</p>
+          <div class="bars">
+            <span class="bar-label">rload (3.55MB)</span><i></i>
+            <span class="bar-label">wrk (3.47MB)</span><i></i>
+            <span class="bar-label">k6 (>100MB)</span><i></i>
+          </div>
+        </article>
+        
+        <article class="card orange">
+          <small>04 / REAL SRE WORKFLOWS</small>
+          <h3>防协同遗漏与流量塑造</h3>
+          <p>内置精准的发送调速步调，真实还原服务端卡顿时客户端的排队延迟。支持通过 stages 定义阶梯式、突发式等高阶负载波形。</p>
+          <code>--replay-stages 10s:100,5s:1000</code>
+        </article>
+      </div>
+    </section>
+
+    <!-- 02 对比优势区 -->
+    <section id="compare" class="contrast">
+      <div class="section wrap">
+        <p class="eyebrow lime">02 / 为什么选择 rload？</p>
+        <h2>完美对齐 wrk。<br><em>原生拥抱现代现实。</em></h2>
+        <p class="section-lead" style="color: var(--muted); margin-bottom: 40px;">在极致轻量化与丰富 replay 能力中，rload 找到了黄金平衡点：</p>
+        
+        <div class="table" id="comparison-table">
+          <div class="thead">
+            <span>核心维度 / 功能</span>
+            <span>wrk 4.2.0 (C)</span>
+            <span>k6 (Go / JS)</span>
+            <span>rload v0.2.2 (Rust)</span>
+          </div>
+          <div>
+            <span>静态极速 HTTP 压测</span>
+            <b class="yes">✓ 极致性能</b>
+            <b class="no">✓ 消耗较大</b>
+            <b class="yes">✓ 极致性能 (对齐)</b>
+          </div>
+          <div>
+            <span>静态内存占用 (RSS)</span>
+            <b class="yes">~3.5 MiB</b>
+            <b class="no">> 100 MiB</b>
+            <b class="yes">~3.55 MiB (对齐)</b>
+          </div>
+          <div>
+            <span>Nginx 访问日志回放</span>
+            <b class="no">✗ 不支持 (需 Lua)</b>
+            <b class="no">✗ 极度消耗内存</b>
+            <b class="yes">✓ 原生流式支持</b>
+          </div>
+          <div>
+            <span>JSONL 自定义请求回放</span>
+            <b class="no">✗ 不支持 (需 Lua)</b>
+            <b class="yes">✓ 支持</b>
+            <b class="yes">✓ 原生流式支持</b>
+          </div>
+          <div>
+            <span>流量步调控制 (Pacing)</span>
+            <b class="no">✗ 不支持</b>
+            <b class="yes">✓ 支持</b>
+            <b class="yes">✓ 原生高精度支持</b>
+          </div>
+          <div>
+            <span>协同遗漏预防 (CO)</span>
+            <b class="no">✗ 不支持 (需 wrk2)</b>
+            <b class="no">✗ 不支持</b>
+            <b class="yes">✓ 原生精确预防</b>
+          </div>
+          <div>
+            <span>CI/CD 容器集成友好度</span>
+            <b class="no">✗ 需动态依赖/编译</b>
+            <b class="yes">✓ 支持</b>
+            <b class="yes">✓ 极佳 (单静态包)</b>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 03 安装与快速开始 -->
+    <section id="install" class="section wrap install">
+      <div class="install-text">
+        <p class="eyebrow">03 / 安装指引</p>
+        <h2>一秒安装，<br><em>开箱即用。</em></h2>
+        <p class="section-lead">我们为所有主流操作系统提供了一等公民级别的原生支持，并发布了全平台无依赖静态二进制文件，你可以选择最适合你的方式：</p>
+        
+        <div class="install-tabs">
+          <button class="tab-btn active" onclick="switchInstallTab('brew')">Homebrew</button>
+          <button class="tab-btn" onclick="switchInstallTab('cargo')">Cargo</button>
+          <button class="tab-btn" onclick="switchInstallTab('binary')">Static Binary</button>
+        </div>
+
+        <div class="links">
+          <a href="https://github.com/wenhaozhao/rload/releases" target="_blank" rel="noopener noreferrer">GitHub Releases ↗</a>
+          <a href="https://crates.io/crates/rload" target="_blank" rel="noopener noreferrer">Crates.io ↗</a>
+          <a href="https://docs.rs/rload" target="_blank" rel="noopener noreferrer">API 文档 ↗</a>
+        </div>
+      </div>
+
+      <div class="install-code-container">
+        <!-- Homebrew Tab Code -->
+        <pre class="install-code active" id="code-brew"><code><span># 使用 Homebrew 安装（macOS & Linux）</span><br>brew install wenhaozhao/rload/rload<br><br><span># 验证安装是否成功</span><br>rload --help</code></pre>
+        
+        <!-- Cargo Tab Code -->
+        <pre class="install-code" id="code-cargo"><code><span># 使用 Rust 工具链一键编译安装</span><br>cargo install rload<br><br><span># 确保 ~/.cargo/bin 已经在你的 PATH 中</span><br>rload --help</code></pre>
+        
+        <!-- Static Binary Tab Code -->
+        <pre class="install-code" id="code-binary"><code><span># 针对无编译环境的服务器/CI 容器</span><br><span># 1. 访问 GitHub Releases 页面一键下载对应平台的压缩包</span><br><span># 2. 解压并将二进制文件移入 PATH，例如：</span><br>tar -xvf rload-v0.2.2-x86_64-unknown-linux-musl.tar.gz<br>sudo mv rload /usr/local/bin/<br><br><span># 3. 验证运行</span><br>rload --help</code></pre>
+      </div>
+    </section>
+
+    <!-- 04 常用场景说明 -->
+    <section class="section wrap quickstart" id="quickstart-section">
+      <p class="eyebrow">04 / 经典实战指令</p>
+      <h2>常见工程压测场景，<br><em>复制即用。</em></h2>
+      <div class="quickstart-grid">
+        <div class="qs-item">
+          <h4>🔥 场景 A：静态极速压测（对齐 wrk）</h4>
+          <p>使用 4 个工作线程、200 个连接，对目标接口压测 30 秒，并持续打印延迟统计：</p>
+          <pre><code>rload -t 4 -c 200 -d 30s https://api.yourdomain.com</code></pre>
+        </div>
+        <div class="qs-item">
+          <h4>📂 场景 B：高保真 Nginx 日志随机回放</h4>
+          <p>读取真实的 Nginx 访问日志，使用特定随机种子（确保结果可幂等重现）打乱顺序进行回放：</p>
+          <pre><code>rload -c 100 -d 60s --log-replay ./access.log --log-order shuffle --seed 12345 http://staging.internal</code></pre>
+        </div>
+        <div class="qs-item">
+          <h4>⏳ 场景 C：按日志真实时间戳速度回放</h4>
+          <p>按照 Nginx 日志中记录的相对时间差高保真还原流量。使用双倍速进行压力测试：</p>
+          <pre><code>rload -c 50 --log-replay ./access.log --replay-timestamps --replay-speed 2.0 http://staging.internal</code></pre>
+        </div>
+        <div class="qs-item">
+          <h4>📝 场景 D：JSONL 多形态动态请求回放</h4>
+          <p>顺序循环回放自定义导出的 JSON 结构化请求文件（支持自定义 Header、Method 和 Request Body）：</p>
+          <pre><code>rload -c 100 -d 5m --request-file ./requests.jsonl http://staging.internal</code></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 底部页脚 -->
+  <footer class="footer wrap">
+    <div class="footer-brand">
+      <a class="logo" href="#top">
+        <img src="logo.png" alt="rload logo" class="logo-img">
+        <span>rload</span>
+      </a>
+      <p>Replay reality. Find the limit.</p>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/wenhaozhao/rload" target="_blank" rel="noopener noreferrer">GitHub 源码</a>
+      <a href="https://github.com/wenhaozhao/rload/blob/main/ROADMAP.md" target="_blank" rel="noopener noreferrer">开发技术线路图</a>
+      <a href="https://github.com/wenhaozhao/rload/blob/main/CODING_STANDARDS.md" target="_blank" rel="noopener noreferrer">编码规范</a>
+    </div>
+  </footer>
+
+  <!-- 极简无框架 Tab 切换逻辑 -->
+  <script>
+    function switchInstallTab(tabId) {
+      // 切换按钮状态
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      event.target.classList.add('active');
+
+      // 切换代码框显示
+      document.querySelectorAll('.install-code').forEach(codeBlock => {
+        codeBlock.classList.remove('active');
+      });
+      document.getElementById('code-' + tabId).classList.add('active');
+    }
+  </script>
+</body>
+</html>
