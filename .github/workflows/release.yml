@@ -147,20 +147,46 @@ jobs:
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#v}"
-          archive="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${RELEASE_TAG}.tar.gz"
-          sha256="$(curl -fsSL "$archive" | sha256sum | cut -d' ' -f1)"
+          release_base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}"
+          linux_archive="rload-${version}-x86_64-unknown-linux-gnu.tar.gz"
+          macos_archive="rload-${version}-aarch64-apple-darwin.tar.gz"
+          linux_url="${release_base}/${linux_archive}"
+          macos_url="${release_base}/${macos_archive}"
+          linux_sha256="$(curl -fsSL "${linux_url}.sha256" | awk '{print $1}')"
+          macos_sha256="$(curl -fsSL "${macos_url}.sha256" | awk '{print $1}')"
+          test "${#linux_sha256}" = 64
+          test "${#macos_sha256}" = 64
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/${TAP_REPOSITORY}.git" /tmp/homebrew-rload
           cd /tmp/homebrew-rload
-          python3 - "$version" "$archive" "$sha256" <<'PY'
+          python3 - "$version" "$linux_url" "$linux_sha256" "$macos_url" "$macos_sha256" <<'PY'
           from pathlib import Path
           import sys
-          version, archive, sha256 = sys.argv[1:]
+          version, linux_url, linux_sha256, macos_url, macos_sha256 = sys.argv[1:]
           path = Path("Formula/rload.rb")
-          text = path.read_text()
-          import re
-          text = re.sub(r'archive/refs/tags/[^"/]+\.tar\.gz', f'archive/refs/tags/v{version}.tar.gz', text)
-          text = re.sub(r'  sha256 "[0-9a-f]+"', f'  sha256 "{sha256}"', text)
-          path.write_text(text)
+          path.write_text(f'''class Rload < Formula
+  desc "Rust HTTP load generator with Nginx access-log and JSONL replay"
+  homepage "https://wenhaozhao.github.io/rload/"
+  license any_of: ["MIT", "Apache-2.0"]
+
+  on_macos do
+    url "{macos_url}"
+    sha256 "{macos_sha256}"
+  end
+
+  on_linux do
+    url "{linux_url}"
+    sha256 "{linux_sha256}"
+  end
+
+  def install
+    bin.install "rload"
+  end
+
+  test do
+    assert_match "rload", shell_output("#{{bin}}/rload --help")
+  end
+end
+''')
           PY
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
