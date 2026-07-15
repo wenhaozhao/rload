@@ -1,5 +1,9 @@
 # rload
 
+<p align="center">
+  <img src="./logo.png" width="160" alt="rload logo">
+</p>
+
 Contributions and reviews must follow [CODING_STANDARDS.md](CODING_STANDARDS.md),
 including the CLI option interaction checklist.
 

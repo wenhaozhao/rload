@@ -1,5 +1,9 @@
 # rload
 
+<p align="center">
+  <img src="./logo.png" width="160" alt="rload logo">
+</p>
+
 [English](./README.md) | 中文
 
 `rload` 是一个 Rust 编写的 HTTP 压测/负载生成工具，具有与 wrk 兼容的 CLI 语义、Nginx 访问日志回放以及结构化 JSONL 请求回放功能。
