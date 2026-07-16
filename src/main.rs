@@ -29,6 +29,7 @@ fn main() -> ExitCode {
 }
 
 fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
+    let mut profile_path = None;
     let mut requests = 1;
     let mut requests_were_set = false;
     let mut duration = None;
@@ -66,6 +67,12 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     while let Some(argument) = args.next() {
         let (argument, attached_value) = split_attached(argument);
         match argument.as_str() {
+            "--profile" => {
+                profile_path = Some(
+                    args.next()
+                        .ok_or_else(|| "--profile requires a file path".to_owned())?,
+                )
+            }
             "-s" | "--script" => {
                 return Err("Lua scripting is not supported\n\nUse an access log or JSONL request file for dynamic request sequences.".into());
             }
@@ -299,6 +306,36 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
         }
     }
 
+    let ordinary_request_was_set =
+        method_was_set || !headers.is_empty() || !data.is_empty() || data_binary.is_some();
+    if let Some(path) = profile_path {
+        let profile = rload::profile::load(path)?;
+        if url.is_none() {
+            url = Some(profile.target.url);
+        }
+        if !requests_were_set
+            && duration.is_none()
+            && let Some(value) = profile.runner.duration
+        {
+            duration = Some(parse_duration(&value)?);
+        }
+        if connections == 10 {
+            connections = profile.runner.connections;
+        }
+        if threads == 2 {
+            threads = profile.runner.threads;
+        }
+        if timeout == Duration::from_secs(2) {
+            timeout = parse_duration(&profile.runner.timeout)?;
+        }
+        if !ordinary_request_was_set && let Some(request) = profile.load_profile.static_request {
+            method = parse_method(&request.method)?;
+            method_was_set = true;
+            headers = request.headers.into_iter().collect();
+            data = request.body.into_iter().collect();
+        }
+    }
+
     if version {
         println!("rload {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
@@ -331,8 +368,6 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     if replay_rounds.is_some() && replay_order == ReplayOrder::Random {
         return Err("--replay-rounds cannot be combined with random replay order".into());
     }
-    let ordinary_request_was_set =
-        method_was_set || !headers.is_empty() || !data.is_empty() || data_binary.is_some();
     if ordinary_request_was_set && (access_log.is_some() || request_file.is_some()) {
         return Err("ordinary request options cannot be combined with replay inputs".into());
     }
@@ -891,6 +926,7 @@ fn print_beauty_optional_duration(label: &str, value: Option<Duration>) {
 
 fn print_help() {
     println!("Usage: rload [OPTIONS] <URL>");
+    println!("      --profile <FILE>  Load a v1 YAML workload profile");
     println!("\nOptions:");
     println!("  -n, --requests <N>  Number of requests to send instead of a duration run");
     println!("  -d, --duration <T>  Run duration [default: 10s]");

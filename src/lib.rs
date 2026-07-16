@@ -4,6 +4,7 @@ mod engine;
 mod error;
 mod metrics;
 pub mod pacer;
+pub mod profile;
 mod protocol;
 mod replay_filter;
 mod request_file;
