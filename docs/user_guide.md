@@ -334,17 +334,14 @@ Here is a full breakdown of the output JSON schema:
   "bytes_written": 284192010,
   "requests_per_sec": 49509.76,
   "latency": {
-    "average_micros": 4120,
-    "min_micros": 210,
-    "max_micros": 42150,
-    "stdev_micros": 1824,
-    "percentiles": {
-      "50.0": 3810,
-      "75.0": 4910,
-      "90.0": 8200,
-      "99.0": 18150,
-      "99.9": 28400
-    }
+    "minimum_us": 210,
+    "maximum_us": 42150,
+    "average_us": 4120,
+    "median_us": 3810,
+    "p50_us": 3810,
+    "p75_us": 4910,
+    "p90_us": 8200,
+    "p99_us": 18150
   },
   "socket_errors": {
     "connect": 0,

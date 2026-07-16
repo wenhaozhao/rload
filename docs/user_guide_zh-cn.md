@@ -334,17 +334,14 @@ Socket errors: connect 0, read 0, write 0, timeout 0
   "bytes_written": 284192010,           // 写入套接字总字节数
   "requests_per_sec": 49509.76,         // 实测每秒请求数 (RPS)
   "latency": {
-    "average_micros": 4120,             // 平均延迟（微秒）
-    "min_micros": 210,                  // 最小延迟（微秒）
-    "max_micros": 42150,                // 最大延迟（微秒）
-    "stdev_micros": 1824,               // 延迟标准差
-    "percentiles": {                    // 延迟百分位数（微秒）
-      "50.0": 3810,
-      "75.0": 4910,
-      "90.0": 8200,
-      "99.0": 18150,
-      "99.9": 28400
-    }
+    "minimum_us": 210,                  // 最小延迟（微秒）
+    "maximum_us": 42150,                // 最大延迟（微秒）
+    "average_us": 4120,                 // 平均延迟（微秒）
+    "median_us": 3810,                  // 中位数延迟（微秒）
+    "p50_us": 3810,                     // 与 median_us 相同
+    "p75_us": 4910,
+    "p90_us": 8200,
+    "p99_us": 18150
   },
   "socket_errors": {                    // 网络套接字错误细分计数
     "connect": 0,

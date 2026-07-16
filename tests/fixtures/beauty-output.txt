@@ -14,6 +14,9 @@ Load requests/sec <value>
 
 Latency
 Average <value>
+Minimum <value>
+Maximum <value>
+Median <value>
 Percentile Value
 <value> <value>
 <value> <value>
@@ -31,7 +34,7 @@ timeout <value>
 
 Breakdowns
 Methods
-GET <value> requests <value> errors avg <value>
+GET <value> requests <value> errors min <value> max <value> avg <value> median <value>
 HTTP statuses
 <value> <value> responses
 URI Top <value> (estimated)

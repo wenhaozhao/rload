@@ -168,14 +168,91 @@ existing replay CLI.*
 
 ---
 
-### Phase 2: v0.3.0 - Declarative Tests and CI Gating
-*Focus: Empower developers with CI-native benchmarking configurations, standalone visual reports, and live observability.*
+### Phase 2: v0.3.0 - CI-first Test Profiles and Reports [Planned]
+*Focus: Make an existing rload workload repeatable in local development and CI,
+with machine-readable pass/fail results and an offline report.*
 
-* **Key Deliverables**:
-  1. **Declarative Test Profiles (`rload.yaml`)**: Define thread counts, connections, targets, filters, and whitelists in a single, version-controlled YAML configuration file.
-  2. **Automated Gating & Assertions (`--assert`)**: Trigger build failures when performance metrics degrade. E.g., fail on P99 latency exceedance or error count ratios.
-  3. **Prometheus Scrape Endpoint**: Provide an lightweight, embedded metric server allowing Prometheus to poll live client-side throughput, error rates, and latency states in real-time during execution.
-  4. **Standalone Self-contained HTML Reports (`--output-html`)**: Generate a single, interactive, zero-dependency HTML file containing modern glassmorphic visualization of latency percentiles (HdrHistogram curves), error rates, and throughput. This provides universal visual feedback for standalone and local developers without requiring external dashboard setups.
+#### Release objective
+
+A repository can commit a small `rload.yaml`, run a workload without rebuilding
+the command line by hand, enforce latency/error budgets, and archive one
+deterministic HTML report. The existing CLI and load engine remain the source of
+truth.
+
+#### Prioritized scope
+
+1. **P0 — Declarative profile loading (`rload.yaml`)**: cover only capabilities
+   already supported by v0.2.4: target, request/duration limit, threads,
+   connections, timeout, ordinary request options, replay source/order/seed,
+   filters, rounds, pacing, and output settings. Define explicit precedence:
+   CLI overrides profile, profile overrides defaults.
+2. **P0 — Typed assertions (`--assert`)**: evaluate a small grammar against the
+   final `RunSummary`, including latency percentiles, throughput, error rates,
+   status errors, socket errors, and completed requests. Failed assertions must
+   have stable diagnostics and exit with status 1.
+3. **P0 — Standalone HTML report (`--output-html`)**: render from the existing
+   JSON result model into one deterministic, dependency-free file. It must not
+   add work to the request/response hot path.
+4. **P0 — Complete latency summary statistics**: add maximum, minimum, mean,
+   and median latency to the aggregate result and human-readable reports. The
+   median is the existing P50 measurement; preserve `p50_us` for compatibility
+   while adding an explicit median field to make the summary self-describing.
+   Define the same statistics for per-method summaries where those summaries
+   are emitted.
+5. **P0 — Failure-tolerant execution**: record every runtime failure without
+   aborting the load run. Connection, read/write, timeout, TLS, and invalid
+   response failures are counted with stable categories; the affected request
+   or connection is isolated and the remaining workload continues. Startup
+   validation and unreadable/malformed input remain fail-fast. Fixed-request
+   runs must have bounded recovery so continuation cannot become an infinite
+   retry loop.
+6. **P1/stretch — Prometheus export**: implement only after the first five
+   deliverables have stable contracts and a measured snapshot design. It is
+   opt-in and must not be required for ordinary runs.
+
+#### Milestones and gates
+
+* **M1 — Contracts**: freeze profile v1, assertion grammar, metric units, JSON
+  result compatibility, and HTML data contract.
+* **M2 — Config vertical slice**: load a static and replay profile, validate
+  cross-field conflicts, and prove CLI precedence with integration tests.
+* **M3 — CI gate**: implement assertion evaluation, stable failure output, and
+  pass/fail tests without changing measured load behavior.
+* **M4 — Metrics and report**: add min/max/mean/median statistics, deterministic
+  HTML output, and compatibility fixtures.
+* **M5 — Failure tolerance**: exercise connection refusal, timeout, reset,
+  write/read failure, TLS failure, malformed response, recovery, and bounded
+  retry behavior across duration and request-count runs.
+* **M6 — Release**: run the existing three-way benchmark and cross-platform
+  checks, then prepare `v0.3.0-rc.1`.
+
+#### Acceptance criteria
+
+* All v0.2.4 CLI forms, text output, JSON schema v1, and replay semantics remain
+  compatible.
+* Invalid profiles identify the field and reject invalid combinations before
+  network or workload execution.
+* YAML and CLI assertions evaluate the same typed metrics.
+* Assertion failures return non-zero without changing the generated load.
+* Aggregate and per-method results expose min/max/mean/median latency in the
+  documented unit; median and `p50` are numerically equivalent within the
+  histogram's documented precision.
+* Runs with no completed latency samples use the documented unavailable value
+  rather than fabricating a latency measurement.
+* Runtime failures never terminate an otherwise valid run; every failure is
+  represented in the summary, while startup/configuration/input errors remain
+  fail-fast.
+* Fixed-request runs have a documented maximum retry/recovery budget or a
+  defined completion rule, so an unavailable target cannot cause an endless
+  run.
+* Identical JSON input produces byte-stable HTML output usable offline.
+* No more than 3% throughput or 5% P99 regression in the fixed baseline; replay
+  RSS remains within the existing documented gate.
+
+#### Non-goals
+
+HTTP/2, gRPC, Lua/LuaJIT, distributed execution, target inference, scripted
+hooks, TUI/GUI, and a mandatory Prometheus deployment are deferred.
 
 ---
 

@@ -2,9 +2,8 @@
 
 ## Current status
 
-- `rload` 0.2.3 is the latest tagged release; `codex/v0.2.4` has passed the
-  local release gate for the tolerant JSONL loading release. Cross-platform CI
-  remains required before tagging.
+- `rload` 0.2.4 is the current release line; the main branch contains the
+  v0.2.4 promotion materials and the next planned release is v0.3.0.
 - The package includes the standard license files and third-party notice.
 - The package metadata points to the public repository, homepage, and docs.rs.
 - `./scripts/release-check.sh` is the required local gate.
@@ -171,48 +170,78 @@ This maintenance release makes tolerant JSONL loading explicit and observable.
 5. Cover strict and tolerant loading, CLI validation, summaries, formatting,
    Clippy, tests, release builds, and package contents before tagging.
 
-## v0.3.0 preparation
+## v0.3.0 development plan
 
-The next release should be a CI-first usability release. Keep the existing
-CLI and replay engine as the source of truth, and make each new surface an
-adapter over the same validated run configuration and `RunSummary`.
+### Product outcome
 
-### Delivery order
+Make a v0.2.4 workload reproducible from a committed `rload.yaml`, enforce
+performance budgets in CI, and produce an offline report. New interfaces must
+adapt the existing validated configuration and `RunSummary`; the load engine
+does not gain a second execution model.
 
-1. **Declarative profile loading**: define and validate `rload.yaml` v1;
-   preserve CLI behavior and make CLI overrides explicit.
-2. **Assertions**: add a small, typed `--assert` expression grammar over final
-   metrics; failed assertions must produce stable diagnostics and exit 1.
-3. **Standalone HTML report**: generate a self-contained report from JSON
-   results, with no effect on the benchmark execution path.
-4. **Prometheus export (stretch)**: implement only after the first three items
-   have stable schemas and a measured low-overhead snapshot design.
+### Scope priority
 
-### v0.3.0 acceptance gates
+1. **P0: profile loading** — support existing static requests, access-log
+   replay, JSONL replay, filters, rounds, pacing, limits, and output options.
+   Define CLI > YAML > defaults precedence and reject invalid combinations
+   before network I/O.
+2. **P0: assertions** — add typed comparisons for `rps`, `mean`, `p50`, `p90`,
+   `p95`, `p99`, `error_rate`, `status_errors`, `socket_errors`, and
+   `completed`. Support latency units (`us`, `ms`, `s`) and stable diagnostics.
+3. **P0: HTML report** — generate `--output-html` from JSON result data as a
+   deterministic, single-file, offline artifact.
+4. **P0: latency summary statistics** — expose maximum, minimum, mean, and
+   median latency in aggregate and per-method reports. Median is P50; retain
+   the existing `p50_us` JSON field and add an explicit `median_us` field.
+   Define empty-sample behavior before changing output.
+5. **P0: failure-tolerant execution** — runtime network, timeout, TLS, read,
+   write, and response failures are recorded and isolated without aborting the
+   valid run. Configuration, malformed replay input, and startup failures remain
+   fail-fast. Fixed-request recovery must be bounded and observable.
+6. **P1/stretch: Prometheus** — add only after a low-contention snapshot design
+   is measured; keep it opt-in and outside the benchmark hot path.
 
-- Existing 0.2.2 CLI, text output, JSON schema v1, replay semantics, and
-  cross-platform tests remain green.
-- A profile can express the documented static and replay workloads and fails
-  with line/field diagnostics for invalid combinations.
-- CLI and YAML assertions evaluate the same `RunSummary` metrics and return a
-  non-zero status on failure without changing measured load behavior.
-- HTML output is deterministic for a fixed JSON result and remains usable
-  offline as one file.
-- The three-way benchmark gate (`wrk`, latest release, development build)
-  shows no regression in throughput, latency, RSS, or replay overhead.
-- Release artifacts, changelog, README examples, website version, and package
-  metadata all report the same version.
+### Delivery slices
 
-### Suggested implementation slices
+- **S1 — Contract freeze**: profile v1, assertion grammar, metric units, error
+  codes, JSON compatibility, and HTML data contract.
+- **S2 — Configuration**: parser, defaults, CLI precedence, field diagnostics,
+  cross-field validation, and static/replay integration tests.
+- **S3 — CI assertions**: lexer/parser/evaluator, final-summary evaluation,
+  pass/fail exit behavior, and stable CI-friendly stderr diagnostics.
+- **S4 — Metrics**: add min/max/mean/median accessors, aggregate and method
+  output, JSON compatibility fields, empty-sample handling, and regression
+  fixtures. Median must share the P50 definition rather than maintain a second
+  calculation path.
+- **S5 — Reporting**: deterministic HTML renderer, offline usability, CLI
+  integration, fixtures, and documentation examples using all four statistics.
+- **S6 — Failure tolerance**: define runtime-failure taxonomy, recovery state
+  machine, retry budget, summary fields, and tests for every failure class.
+- **S7 — Release hardening**: cross-platform CI, package checks, three-way
+  benchmark, replay RSS validation, and `v0.3.0-rc.1`.
 
-- `config.rs`: profile schema, duration/unit parsing, CLI override precedence,
-  and cross-field validation.
-- `assertions.rs`: lexer/parser/evaluator with unit-aware typed values and
-  focused error messages.
-- `report.rs`: versioned HTML data contract and deterministic renderer built
-  from the existing JSON result model.
-- CLI/integration tests first for each slice, then benchmark and platform
-  validation before changing the version.
+### Release gates
+
+- Existing v0.2.4 CLI, text output, JSON schema v1, and replay behavior remain
+  compatible.
+- Invalid configuration fails before target connection and names the field.
+- YAML and CLI assertions share one typed evaluator over `RunSummary`.
+- Aggregate and per-method latency summaries expose min/max/mean/median; the
+  explicit median field is equivalent to existing P50 within histogram precision.
+- Empty latency samples are represented consistently in text, JSON, and HTML.
+- Runtime failures never abort a valid load run and are reported by category;
+  startup/configuration/input errors remain fail-fast.
+- Fixed-request runs cannot retry an unavailable target forever: the retry
+  budget/completion rule is explicit and covered by tests.
+- Same JSON input produces byte-identical HTML output.
+- Fixed baseline throughput regression is at most 3%; P99 regression target is
+  at most 5%; replay memory stays within the existing gate.
+- Release artifacts, version output, README, website, and changelog agree.
+
+### Deferred from v0.3.0
+
+HTTP/2, gRPC, Lua/LuaJIT, distributed execution, target inference, scripted
+hooks, TUI/GUI, and mandatory Prometheus deployment.
 
 ## Deferred follow-up work
 
@@ -222,7 +251,7 @@ adapter over the same validated run configuration and `RunSummary`.
 - Investigate and resolve the zero-delay P99 sensitivity before claiming
   unconditional parity across environments.
 - Define the skipped-record output schema and verify that skipped access-log
-   entries do not affect sent-request latency, throughput, or URI statistics.
+  entries do not affect sent-request latency, throughput, or URI statistics.
 - Fixed-rate, timestamp, and stage pacing are mutually exclusive and covered by
   multiplier, precision, transition, and duration-boundary tests.
 

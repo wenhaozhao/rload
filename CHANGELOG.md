@@ -2,6 +2,15 @@
 
 All notable changes to rload are documented here.
 
+## [Unreleased]
+
+### Planned for 0.3.0
+
+- Add minimum, maximum, average, and median latency statistics to aggregate and
+  per-method reports while preserving the existing P50 JSON field.
+- Record runtime failures and continue valid load runs, with categorized
+  recovery and bounded retry behavior for fixed-request workloads.
+
 ## [0.2.4] - 2026-07-15
 
 ### Changed

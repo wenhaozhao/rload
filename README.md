@@ -256,8 +256,10 @@ rload -t2 -c100 -d30s --output-format json http://127.0.0.1/ > result.json
 ```
 
 JSON output is one document on stdout with `schema_version: 1`. Durations and
-latencies use integer microseconds. It includes aggregate throughput, latency
-percentiles, HTTP status and method statistics, socket errors, URI Top-20
+latencies use integer microseconds. It includes aggregate and per-method
+minimum, maximum, average, and median latency; the existing `p50_us` field is
+retained and equals `median_us`. It also includes latency percentiles, HTTP
+status and method statistics, socket errors, URI Top-20
 estimates, filtered/skipped replay records, and the active fixed-rate,
 timestamp, or stage pacing configuration. Configuration and runtime errors
 remain on stderr and return a non-zero exit status. The default `text` format

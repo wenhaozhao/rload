@@ -147,7 +147,25 @@ fn cli_outputs_machine_readable_json_summary() {
     assert_eq!(result["summary"]["response_body_bytes"], 2);
     assert!(result["summary"]["read_bytes"].as_u64().unwrap() > 2);
     assert_eq!(result["methods"]["GET"]["requests"], 1);
+    assert!(
+        result["methods"]["GET"]["minimum_latency_us"]
+            .as_u64()
+            .is_some()
+    );
+    assert!(
+        result["methods"]["GET"]["maximum_latency_us"]
+            .as_u64()
+            .is_some()
+    );
+    assert!(
+        result["methods"]["GET"]["median_latency_us"]
+            .as_u64()
+            .is_some()
+    );
     assert_eq!(result["http_statuses"]["201"], 1);
+    assert!(result["latency"]["minimum_us"].as_u64().is_some());
+    assert!(result["latency"]["maximum_us"].as_u64().is_some());
+    assert_eq!(result["latency"]["median_us"], result["latency"]["p50_us"]);
     assert!(result["latency"]["p99_us"].as_u64().is_some());
     assert_eq!(result["replay"]["configured_rate"], serde_json::Value::Null);
     assert_eq!(result["pacing"]["stages"][0]["rate"], 10);

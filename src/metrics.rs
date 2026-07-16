@@ -51,14 +51,40 @@ impl LatencyHistogram {
         Duration::from_secs_f64(self.histogram.as_ref().map_or(0.0, Histogram::mean) / 1_000_000.0)
     }
 
+    pub fn minimum(&self) -> Option<Duration> {
+        self.histogram
+            .as_ref()
+            .filter(|histogram| !histogram.is_empty())
+            .map(|histogram| Duration::from_micros(histogram.min()))
+    }
+
+    pub fn maximum(&self) -> Option<Duration> {
+        self.histogram
+            .as_ref()
+            .filter(|histogram| !histogram.is_empty())
+            .map(|histogram| latency_duration(histogram.max()))
+    }
+
+    pub fn average(&self) -> Option<Duration> {
+        (!self.is_empty()).then(|| self.mean())
+    }
+
+    pub fn median(&self) -> Option<Duration> {
+        (!self.is_empty()).then(|| {
+            self.percentile(50.0)
+                .expect("the built-in median percentile is valid")
+        })
+    }
+
     pub fn percentile(&self, percentile: f64) -> Option<Duration> {
-        if !percentile.is_finite() || !(0.0..=100.0).contains(&percentile) {
+        if self.is_empty() || !percentile.is_finite() || !(0.0..=100.0).contains(&percentile) {
             return None;
         }
-        Some(Duration::from_micros(
-            self.histogram.as_ref().map_or(0, |histogram| {
-                histogram.value_at_quantile(percentile / 100.0)
-            }),
+        Some(latency_duration(
+            self.histogram
+                .as_ref()
+                .expect("non-empty latency histogram exists")
+                .value_at_quantile(percentile / 100.0),
         ))
     }
 
@@ -115,6 +141,10 @@ impl LatencyHistogram {
     }
 }
 
+fn latency_duration(micros: u64) -> Duration {
+    Duration::from_micros(micros.min(MAX_LATENCY_US))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -126,6 +156,7 @@ mod tests {
         assert_eq!(histogram.percentile(f64::NAN), None);
         assert_eq!(histogram.percentile(-1.0), None);
         assert_eq!(histogram.percentile(101.0), None);
+        assert_eq!(histogram.percentile(50.0), None);
     }
 
     #[test]
@@ -177,7 +208,21 @@ mod tests {
 
         assert_eq!(first.len(), 3);
         assert_eq!(first.overflow_count(), 1);
+        assert_eq!(first.minimum(), Some(Duration::from_micros(100)));
+        assert_eq!(first.maximum(), Some(Duration::from_secs(60 * 60)));
+        assert_eq!(first.maximum(), first.percentile(100.0));
+        assert_eq!(first.median(), first.percentile(50.0));
         assert!(first.percentile(50.0).unwrap() >= Duration::from_micros(100));
+    }
+
+    #[test]
+    fn empty_histogram_has_no_summary_statistics() {
+        let histogram = LatencyHistogram::default();
+
+        assert_eq!(histogram.minimum(), None);
+        assert_eq!(histogram.maximum(), None);
+        assert_eq!(histogram.average(), None);
+        assert_eq!(histogram.median(), None);
     }
 
     #[test]

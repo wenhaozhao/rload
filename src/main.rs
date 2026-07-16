@@ -454,22 +454,20 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
         print_beauty(&summary, &replay_options, whitelist_was_set, is_replay);
         return Ok(());
     }
-    let average_latency = summary.latencies.mean();
-
     println!("{} requests completed", summary.completed);
     println!("{} B read", summary.read_bytes);
     println!("{} response body B read", summary.response_body_bytes);
-    println!("Average latency: {:.2?}", average_latency);
+    print_optional_duration("Average latency", summary.latencies.average());
+    print_optional_duration("Minimum latency", summary.latencies.minimum());
+    print_optional_duration("Maximum latency", summary.latencies.maximum());
+    print_optional_duration("Median latency", summary.latencies.median());
     println!("Latency Distribution");
     for percentile in [50.0, 75.0, 90.0, 99.0] {
-        println!(
-            "  {:>3.0}% {:>10.2?}",
-            percentile,
-            summary
-                .latencies
-                .percentile(percentile)
-                .expect("built-in percentile is valid")
-        );
+        if let Some(value) = summary.latencies.percentile(percentile) {
+            println!("  {percentile:>3.0}% {value:>10.2?}");
+        } else {
+            println!("  {percentile:>3.0}% {:>10}", "N/A");
+        }
     }
     if summary.latencies.overflow_count() > 0 {
         println!(
@@ -558,11 +556,26 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
         let method = summary.method(method);
         if method.completed > 0 {
             println!(
-                "  {:<5} {:>8} requests, {:>8} errors, average {:.2?}",
+                "  {:<5} {:>8} requests, {:>8} errors, min {:.2?}, max {:.2?}, average {:.2?}, median {:.2?}",
                 name,
                 method.completed,
                 method.status_errors,
-                method.latencies.mean()
+                method
+                    .latencies
+                    .minimum()
+                    .expect("completed method has latency"),
+                method
+                    .latencies
+                    .maximum()
+                    .expect("completed method has latency"),
+                method
+                    .latencies
+                    .average()
+                    .expect("completed method has latency"),
+                method
+                    .latencies
+                    .median()
+                    .expect("completed method has latency")
             );
         }
     }
@@ -595,7 +608,10 @@ fn print_json(
                     serde_json::json!({
                         "requests": statistics.completed,
                         "status_errors": statistics.status_errors,
-                        "average_latency_us": duration_us(statistics.latencies.mean()),
+                        "minimum_latency_us": statistics.latencies.minimum().map(duration_us),
+                        "maximum_latency_us": statistics.latencies.maximum().map(duration_us),
+                        "average_latency_us": statistics.latencies.average().map(duration_us),
+                        "median_latency_us": statistics.latencies.median().map(duration_us),
                     }),
                 )
             })
@@ -631,11 +647,14 @@ fn print_json(
             "status_errors": summary.status_errors,
         },
         "latency": {
-            "average_us": duration_us(summary.latencies.mean()),
-            "p50_us": duration_us(summary.latencies.percentile(50.0).expect("valid percentile")),
-            "p75_us": duration_us(summary.latencies.percentile(75.0).expect("valid percentile")),
-            "p90_us": duration_us(summary.latencies.percentile(90.0).expect("valid percentile")),
-            "p99_us": duration_us(summary.latencies.percentile(99.0).expect("valid percentile")),
+            "minimum_us": summary.latencies.minimum().map(duration_us),
+            "maximum_us": summary.latencies.maximum().map(duration_us),
+            "average_us": summary.latencies.average().map(duration_us),
+            "median_us": summary.latencies.median().map(duration_us),
+            "p50_us": summary.latencies.percentile(50.0).map(duration_us),
+            "p75_us": summary.latencies.percentile(75.0).map(duration_us),
+            "p90_us": summary.latencies.percentile(90.0).map(duration_us),
+            "p99_us": summary.latencies.percentile(99.0).map(duration_us),
             "overflow_count": summary.latencies.overflow_count(),
             "correction_interval_us": summary.coordinated_omission_interval.map(duration_us),
         },
@@ -707,17 +726,17 @@ fn print_beauty(
     );
     println!();
     println!("Latency");
-    println!("  Average              {:>12.2?}", summary.latencies.mean());
+    print_beauty_optional_duration("Average", summary.latencies.average());
+    print_beauty_optional_duration("Minimum", summary.latencies.minimum());
+    print_beauty_optional_duration("Maximum", summary.latencies.maximum());
+    print_beauty_optional_duration("Median", summary.latencies.median());
     println!("  Percentile                Value");
     for percentile in [50.0, 75.0, 90.0, 99.0] {
-        println!(
-            "  {:>6.0}%              {:>12.2?}",
-            percentile,
-            summary
-                .latencies
-                .percentile(percentile)
-                .expect("built-in percentile is valid")
-        );
+        if let Some(value) = summary.latencies.percentile(percentile) {
+            println!("  {percentile:>6.0}%              {value:>12.2?}");
+        } else {
+            println!("  {percentile:>6.0}%              {:>12}", "N/A");
+        }
     }
     if summary.latencies.overflow_count() > 0 {
         println!(
@@ -814,11 +833,26 @@ fn print_beauty(
         let statistics = summary.method(method);
         if statistics.completed > 0 {
             println!(
-                "    {:<7} {:>10} requests  {:>8} errors  avg {:.2?}",
+                "    {:<7} {:>10} requests  {:>8} errors  min {:.2?}  max {:.2?}  avg {:.2?}  median {:.2?}",
                 method.as_str(),
                 statistics.completed,
                 statistics.status_errors,
-                statistics.latencies.mean()
+                statistics
+                    .latencies
+                    .minimum()
+                    .expect("completed method has latency"),
+                statistics
+                    .latencies
+                    .maximum()
+                    .expect("completed method has latency"),
+                statistics
+                    .latencies
+                    .average()
+                    .expect("completed method has latency"),
+                statistics
+                    .latencies
+                    .median()
+                    .expect("completed method has latency")
             );
         }
     }
@@ -837,6 +871,22 @@ fn print_beauty(
 
 fn duration_us(duration: Duration) -> u64 {
     u64::try_from(duration.as_micros()).unwrap_or(u64::MAX)
+}
+
+fn print_optional_duration(label: &str, value: Option<Duration>) {
+    if let Some(value) = value {
+        println!("{label}: {value:.2?}");
+    } else {
+        println!("{label}: N/A");
+    }
+}
+
+fn print_beauty_optional_duration(label: &str, value: Option<Duration>) {
+    if let Some(value) = value {
+        println!("  {label:<20} {value:>12.2?}");
+    } else {
+        println!("  {label:<20} {:>12}", "N/A");
+    }
 }
 
 fn print_help() {
