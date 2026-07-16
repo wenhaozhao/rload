@@ -403,6 +403,40 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
             if allowed_uris.is_empty() {
                 allowed_uris = replay.filter.allowed_uris;
             }
+            if replay_rate.is_none()
+                && !replay_timestamps
+                && stages.is_empty()
+                && let Some(pacing) = replay.pacing
+            {
+                match pacing.mode.as_str() {
+                    "none" => {}
+                    "rate" => replay_rate = pacing.rate,
+                    "timestamp" => {
+                        replay_timestamps = true;
+                        replay_speed = pacing.speed.unwrap_or(1.0);
+                    }
+                    "stages" => {
+                        stages = pacing
+                            .stages
+                            .into_iter()
+                            .map(|stage| {
+                                let duration = parse_duration(&stage.duration)?;
+                                if duration.is_zero() {
+                                    return Err(
+                                        "profile replay stage durations must be greater than zero"
+                                            .into(),
+                                    );
+                                }
+                                Ok(ReplayStage {
+                                    duration,
+                                    rate: stage.target_rps,
+                                })
+                            })
+                            .collect::<Result<_, String>>()?;
+                    }
+                    _ => unreachable!("profile pacing mode is validated before use"),
+                }
+            }
         }
     }
 

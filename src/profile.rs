@@ -75,7 +75,26 @@ pub struct LogReplay {
     #[serde(default)]
     pub skip_invalid_records: bool,
     #[serde(default)]
+    pub pacing: Option<Pacing>,
+    #[serde(default)]
     pub filter: ReplayFilter,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct Pacing {
+    pub mode: String,
+    #[serde(default)]
+    pub rate: Option<u64>,
+    #[serde(default)]
+    pub speed: Option<f64>,
+    #[serde(default)]
+    pub stages: Vec<PacingStage>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct PacingStage {
+    pub duration: String,
+    pub target_rps: u64,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -152,6 +171,18 @@ pub fn load(path: impl AsRef<Path>) -> Result<Profile, String> {
             && rounds == 0
         {
             return Err("profile load_profile.log_replay.rounds must be greater than zero".into());
+        }
+        if let Some(pacing) = &replay.pacing {
+            match pacing.mode.as_str() {
+                "none" => {}
+                "rate" if pacing.rate.is_some_and(|rate| rate > 0) => {}
+                "timestamp" if pacing.speed.is_none_or(|speed| speed.is_finite() && speed > 0.0) => {}
+                "stages" if !pacing.stages.is_empty() && pacing.stages.iter().all(|stage| stage.target_rps > 0 && !stage.duration.trim().is_empty()) => {}
+                "rate" => return Err("profile load_profile.log_replay.pacing.rate must be greater than zero".into()),
+                "timestamp" => return Err("profile load_profile.log_replay.pacing.speed must be a finite number greater than zero".into()),
+                "stages" => return Err("profile load_profile.log_replay.pacing.stages must contain non-empty durations and positive target_rps values".into()),
+                _ => return Err(format!("profile load_profile.log_replay.pacing.mode must be none, rate, timestamp, or stages, got {}", pacing.mode)),
+            }
         }
     }
     Ok(profile)

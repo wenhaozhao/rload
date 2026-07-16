@@ -183,7 +183,7 @@ fn cli_loads_an_access_log_replay_profile() {
     fs::write(
         &profile,
         format!(
-            "version: v1\ntarget:\n  url: http://{address}/\nrunner:\n  threads: 1\n  connections: 1\nload_profile:\n  mode: log_replay\n  log_replay:\n    path: {}\n    format: nginx\n    rounds: 1\n    filter:\n      allowed_methods: [GET]\n      allowed_uris: [/profile]\nobservability:\n  output_format: json\n",
+            "version: v1\ntarget:\n  url: http://{address}/\nrunner:\n  threads: 1\n  connections: 1\nload_profile:\n  mode: log_replay\n  log_replay:\n    path: {}\n    format: nginx\n    rounds: 1\n    pacing:\n      mode: rate\n      rate: 1000\n    filter:\n      allowed_methods: [GET]\n      allowed_uris: [/profile]\nobservability:\n  output_format: json\n",
             log.display()
         ),
     )
@@ -205,6 +205,7 @@ fn cli_loads_an_access_log_replay_profile() {
     let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(result["summary"]["completed_requests"], 1);
     assert_eq!(result["replay"]["configured_rounds"], 1);
+    assert_eq!(result["replay"]["configured_rate"], 1000);
 }
 
 #[test]
