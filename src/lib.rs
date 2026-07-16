@@ -1,4 +1,5 @@
 mod access_log;
+pub mod assertions;
 mod config;
 mod engine;
 mod error;

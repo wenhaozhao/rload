@@ -30,6 +30,7 @@ fn main() -> ExitCode {
 
 fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     let mut profile_path = None;
+    let mut assertions = Vec::new();
     let mut requests = 1;
     let mut requests_were_set = false;
     let mut duration = None;
@@ -77,6 +78,10 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                         .ok_or_else(|| "--profile requires a file path".to_owned())?,
                 )
             }
+            "--assert" => assertions.push(
+                args.next()
+                    .ok_or_else(|| "--assert requires an expression".to_owned())?,
+            ),
             "-s" | "--script" => {
                 return Err("Lua scripting is not supported\n\nUse an access log or JSONL request file for dynamic request sequences.".into());
             }
@@ -318,6 +323,12 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
         method_was_set || !headers.is_empty() || !data.is_empty() || data_binary.is_some();
     if let Some(path) = profile_path {
         let profile = rload::profile::load(path)?;
+        assertions.extend(
+            profile
+                .assertions
+                .into_iter()
+                .map(|assertion| assertion.expression),
+        );
         if url.is_none() {
             url = Some(profile.target.url);
         }
@@ -585,6 +596,9 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
         (Some(_), Some(_)) => unreachable!("replay inputs are mutually exclusive"),
     }
     .map_err(|error| error.to_string())?;
+    for expression in assertions {
+        rload::assertions::evaluate(&summary, &expression)?;
+    }
     if output_format == OutputFormat::Json {
         print_json(&summary, &replay_options, whitelist_was_set)?;
         return Ok(());
@@ -1031,6 +1045,7 @@ fn print_beauty_optional_duration(label: &str, value: Option<Duration>) {
 fn print_help() {
     println!("Usage: rload [OPTIONS] <URL>");
     println!("      --profile <FILE>  Load a v1 YAML workload profile");
+    println!("      --assert <EXPR>   Fail when a final-summary assertion does not hold");
     println!("\nOptions:");
     println!("  -n, --requests <N>  Number of requests to send instead of a duration run");
     println!("  -d, --duration <T>  Run duration [default: 10s]");

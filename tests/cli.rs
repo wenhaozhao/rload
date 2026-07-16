@@ -130,13 +130,20 @@ fn cli_loads_a_static_v1_profile() {
     fs::write(
         &path,
         format!(
-            "version: v1\ntarget:\n  url: http://{address}/health\nrunner:\n  threads: 1\n  connections: 1\n  duration: 1s\nload_profile:\n  mode: static\n  static:\n    method: GET\nobservability:\n  output_format: json\n"
+            "version: v1\ntarget:\n  url: http://{address}/health\nrunner:\n  threads: 1\n  connections: 1\n  duration: 1s\nload_profile:\n  mode: static\n  static:\n    method: GET\nobservability:\n  output_format: json\nassertions:\n  - expression: completed == 1\n"
         ),
     )
     .unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_rload"))
-        .args(["--profile", path.to_str().unwrap(), "--requests", "1"])
+        .args([
+            "--profile",
+            path.to_str().unwrap(),
+            "--requests",
+            "1",
+            "--assert",
+            "p99 < 1s",
+        ])
         .output()
         .unwrap();
     fs::remove_file(path).unwrap();

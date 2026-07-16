@@ -13,6 +13,15 @@ pub struct Profile {
     pub load_profile: LoadProfile,
     #[serde(default)]
     pub observability: Observability,
+    #[serde(default)]
+    pub assertions: Vec<Assertion>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Assertion {
+    pub expression: String,
+    #[serde(default)]
+    pub message: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
