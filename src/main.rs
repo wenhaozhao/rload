@@ -34,8 +34,11 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     let mut requests_were_set = false;
     let mut duration = None;
     let mut connections = 10;
+    let mut connections_were_set = false;
     let mut threads = 2;
+    let mut threads_were_set = false;
     let mut timeout = Duration::from_secs(2);
+    let mut timeout_was_set = false;
     let mut url = None;
     let mut access_log = None;
     let mut request_file = None;
@@ -53,6 +56,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     let mut replay_stages_were_set = false;
     let mut replay_rounds = None;
     let mut output_format = OutputFormat::Text;
+    let mut output_format_was_set = false;
     let mut output_beauty = false;
     let mut version = false;
     let mut method = Method::Get;
@@ -198,6 +202,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                         ));
                     }
                 };
+                output_format_was_set = true;
             }
             "--output-beauty" => output_beauty = true,
             "-X" | "--request" => {
@@ -266,6 +271,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                     .or_else(|| args.next())
                     .ok_or_else(|| "--timeout requires a value".to_owned())?;
                 timeout = parse_duration(&value)?;
+                timeout_was_set = true;
             }
             "--latency" => {}
             "-c" | "--connections" => {
@@ -278,6 +284,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                 if connections == 0 {
                     return Err("connection count must be greater than zero".into());
                 }
+                connections_were_set = true;
             }
             "-t" | "--threads" => {
                 let value = attached_value
@@ -289,6 +296,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                 if threads == 0 {
                     return Err("thread count must be greater than zero".into());
                 }
+                threads_were_set = true;
             }
             "-h" | "--help" => {
                 print_help();
@@ -306,7 +314,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
         }
     }
 
-    let ordinary_request_was_set =
+    let mut ordinary_request_was_set =
         method_was_set || !headers.is_empty() || !data.is_empty() || data_binary.is_some();
     if let Some(path) = profile_path {
         let profile = rload::profile::load(path)?;
@@ -319,20 +327,32 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
         {
             duration = Some(parse_duration(&value)?);
         }
-        if connections == 10 {
+        if !connections_were_set {
             connections = profile.runner.connections;
         }
-        if threads == 2 {
+        if !threads_were_set {
             threads = profile.runner.threads;
         }
-        if timeout == Duration::from_secs(2) {
+        if !timeout_was_set {
             timeout = parse_duration(&profile.runner.timeout)?;
+        }
+        if !output_format_was_set && let Some(value) = profile.observability.output_format {
+            output_format = match value.as_str() {
+                "text" => OutputFormat::Text,
+                "json" => OutputFormat::Json,
+                _ => {
+                    return Err(format!(
+                        "profile observability.output_format must be text or json, got {value}"
+                    ));
+                }
+            };
         }
         if !ordinary_request_was_set && let Some(request) = profile.load_profile.static_request {
             method = parse_method(&request.method)?;
             method_was_set = true;
             headers = request.headers.into_iter().collect();
             data = request.body.into_iter().collect();
+            ordinary_request_was_set = true;
         }
     }
 

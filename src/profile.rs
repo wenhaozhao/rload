@@ -92,5 +92,17 @@ pub fn load(path: impl AsRef<Path>) -> Result<Profile, String> {
     if profile.target.url.trim().is_empty() {
         return Err("profile target.url must not be empty".into());
     }
+    if let Some(mode) = &profile.load_profile.mode
+        && mode != "static"
+    {
+        return Err(format!(
+            "profile load_profile.mode is not supported yet: {mode}"
+        ));
+    }
+    if profile.load_profile.mode.as_deref() == Some("static")
+        && profile.load_profile.static_request.is_none()
+    {
+        return Err("profile load_profile.static is required when mode is static".into());
+    }
     Ok(profile)
 }

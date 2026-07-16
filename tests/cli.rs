@@ -106,6 +106,52 @@ fn cli_runs_http_load_and_prints_summary() {
 }
 
 #[test]
+fn cli_loads_a_static_v1_profile() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = Vec::new();
+        while !request.ends_with(b"\r\n\r\n") {
+            let mut byte = [0];
+            stream.read_exact(&mut byte).unwrap();
+            request.push(byte[0]);
+        }
+        assert!(
+            String::from_utf8(request)
+                .unwrap()
+                .starts_with("GET /health HTTP/1.1")
+        );
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK")
+            .unwrap();
+    });
+    let path = env::temp_dir().join(format!("rload-profile-{}.yaml", std::process::id()));
+    fs::write(
+        &path,
+        format!(
+            "version: v1\ntarget:\n  url: http://{address}/health\nrunner:\n  threads: 1\n  connections: 1\n  duration: 1s\nload_profile:\n  mode: static\n  static:\n    method: GET\nobservability:\n  output_format: json\n"
+        ),
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args(["--profile", path.to_str().unwrap(), "--requests", "1"])
+        .output()
+        .unwrap();
+    fs::remove_file(path).unwrap();
+    server.join().unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["summary"]["completed_requests"], 1);
+}
+
+#[test]
 fn cli_outputs_machine_readable_json_summary() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
