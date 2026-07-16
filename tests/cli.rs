@@ -152,6 +152,62 @@ fn cli_loads_a_static_v1_profile() {
 }
 
 #[test]
+fn cli_loads_an_access_log_replay_profile() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = Vec::new();
+        while !request.ends_with(b"\r\n\r\n") {
+            let mut byte = [0];
+            stream.read_exact(&mut byte).unwrap();
+            request.push(byte[0]);
+        }
+        assert!(
+            String::from_utf8(request)
+                .unwrap()
+                .starts_with("GET /profile HTTP/1.1")
+        );
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+            .unwrap();
+    });
+    let suffix = std::process::id();
+    let log = env::temp_dir().join(format!("rload-profile-replay-{suffix}.log"));
+    let profile = env::temp_dir().join(format!("rload-profile-replay-{suffix}.yaml"));
+    fs::write(
+        &log,
+        "127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] \"GET /profile HTTP/1.1\" 200 0\n",
+    )
+    .unwrap();
+    fs::write(
+        &profile,
+        format!(
+            "version: v1\ntarget:\n  url: http://{address}/\nrunner:\n  threads: 1\n  connections: 1\nload_profile:\n  mode: log_replay\n  log_replay:\n    path: {}\n    format: nginx\n    rounds: 1\n    filter:\n      allowed_methods: [GET]\n      allowed_uris: [/profile]\nobservability:\n  output_format: json\n",
+            log.display()
+        ),
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args(["--profile", profile.to_str().unwrap()])
+        .output()
+        .unwrap();
+    fs::remove_file(log).unwrap();
+    fs::remove_file(profile).unwrap();
+    server.join().unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["summary"]["completed_requests"], 1);
+    assert_eq!(result["replay"]["configured_rounds"], 1);
+}
+
+#[test]
 fn cli_outputs_machine_readable_json_summary() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();

@@ -42,20 +42,48 @@ impl Default for Runner {
     }
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize)]
 pub struct LoadProfile {
     pub mode: Option<String>,
     #[serde(rename = "static")]
     pub static_request: Option<StaticRequest>,
+    #[serde(rename = "log_replay")]
+    pub log_replay: Option<LogReplay>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct StaticRequest {
     #[serde(default = "default_method")]
     pub method: String,
     #[serde(default)]
     pub headers: std::collections::BTreeMap<String, String>,
     pub body: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct LogReplay {
+    pub path: String,
+    pub format: String,
+    #[serde(default)]
+    pub order: Option<String>,
+    #[serde(default)]
+    pub seed: Option<u64>,
+    #[serde(default)]
+    pub rounds: Option<u64>,
+    #[serde(default)]
+    pub schema: Option<String>,
+    #[serde(default)]
+    pub skip_invalid_records: bool,
+    #[serde(default)]
+    pub filter: ReplayFilter,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct ReplayFilter {
+    #[serde(default)]
+    pub allowed_methods: Vec<String>,
+    #[serde(default)]
+    pub allowed_uris: Vec<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -94,6 +122,7 @@ pub fn load(path: impl AsRef<Path>) -> Result<Profile, String> {
     }
     if let Some(mode) = &profile.load_profile.mode
         && mode != "static"
+        && mode != "log_replay"
     {
         return Err(format!(
             "profile load_profile.mode is not supported yet: {mode}"
@@ -103,6 +132,27 @@ pub fn load(path: impl AsRef<Path>) -> Result<Profile, String> {
         && profile.load_profile.static_request.is_none()
     {
         return Err("profile load_profile.static is required when mode is static".into());
+    }
+    if profile.load_profile.mode.as_deref() == Some("log_replay")
+        && profile.load_profile.log_replay.is_none()
+    {
+        return Err("profile load_profile.log_replay is required when mode is log_replay".into());
+    }
+    if let Some(replay) = &profile.load_profile.log_replay {
+        if replay.path.trim().is_empty() {
+            return Err("profile load_profile.log_replay.path must not be empty".into());
+        }
+        if replay.format != "nginx" && replay.format != "jsonl" {
+            return Err(format!(
+                "profile load_profile.log_replay.format must be nginx or jsonl, got {}",
+                replay.format
+            ));
+        }
+        if let Some(rounds) = replay.rounds
+            && rounds == 0
+        {
+            return Err("profile load_profile.log_replay.rounds must be greater than zero".into());
+        }
     }
     Ok(profile)
 }

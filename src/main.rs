@@ -347,12 +347,62 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                 }
             };
         }
-        if !ordinary_request_was_set && let Some(request) = profile.load_profile.static_request {
+        if access_log.is_none()
+            && request_file.is_none()
+            && !ordinary_request_was_set
+            && let Some(request) = profile.load_profile.static_request
+        {
             method = parse_method(&request.method)?;
             method_was_set = true;
             headers = request.headers.into_iter().collect();
             data = request.body.into_iter().collect();
             ordinary_request_was_set = true;
+        }
+        if access_log.is_none()
+            && request_file.is_none()
+            && !ordinary_request_was_set
+            && let Some(replay) = profile.load_profile.log_replay
+        {
+            match replay.format.as_str() {
+                "nginx" => access_log = Some(replay.path),
+                "jsonl" => request_file = Some(replay.path),
+                _ => unreachable!("profile format is validated before use"),
+            }
+            if !replay_option_was_set {
+                if let Some(order) = replay.order {
+                    replay_order = match order.as_str() {
+                        "sequential" => ReplayOrder::Sequential,
+                        "shuffle" => ReplayOrder::Shuffle,
+                        "random" => ReplayOrder::Random,
+                        _ => {
+                            return Err(format!(
+                                "profile load_profile.log_replay.order must be sequential, shuffle, or random, got {order}"
+                            ));
+                        }
+                    };
+                }
+                seed = replay.seed;
+            }
+            if replay_rounds.is_none() {
+                replay_rounds = replay.rounds;
+            }
+            if request_schema.is_none() {
+                request_schema = replay.schema;
+            }
+            if !skip_invalid_records {
+                skip_invalid_records = replay.skip_invalid_records;
+            }
+            if allowed_methods.is_empty() {
+                allowed_methods = replay
+                    .filter
+                    .allowed_methods
+                    .iter()
+                    .map(|value| parse_method(value))
+                    .collect::<Result<_, _>>()?;
+            }
+            if allowed_uris.is_empty() {
+                allowed_uris = replay.filter.allowed_uris;
+            }
         }
     }
 
