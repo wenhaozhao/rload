@@ -118,6 +118,8 @@ pub struct ReplayFilter {
 pub struct Observability {
     #[serde(default)]
     pub output_format: Option<String>,
+    #[serde(default)]
+    pub output_html: Option<String>,
 }
 
 fn default_threads() -> usize {

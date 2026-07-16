@@ -127,6 +127,7 @@ fn cli_loads_a_static_v1_profile() {
             .unwrap();
     });
     let path = env::temp_dir().join(format!("rload-profile-{}.yaml", std::process::id()));
+    let report = env::temp_dir().join(format!("rload-report-{}.html", std::process::id()));
     fs::write(
         &path,
         format!(
@@ -143,6 +144,8 @@ fn cli_loads_a_static_v1_profile() {
             "1",
             "--assert",
             "p99 < 1s",
+            "--output-html",
+            report.to_str().unwrap(),
         ])
         .output()
         .unwrap();
@@ -156,6 +159,10 @@ fn cli_loads_a_static_v1_profile() {
     );
     let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(result["summary"]["completed_requests"], 1);
+    let html = fs::read_to_string(&report).unwrap();
+    fs::remove_file(report).unwrap();
+    assert!(html.contains("<title>rload report</title>"));
+    assert!(html.contains("\"completed_requests\":1"));
 }
 
 #[test]

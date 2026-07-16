@@ -8,6 +8,7 @@ pub mod pacer;
 pub mod profile;
 mod protocol;
 mod replay_filter;
+pub mod report;
 mod request_file;
 mod request_sequence;
 mod target;

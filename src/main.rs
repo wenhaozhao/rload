@@ -59,6 +59,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     let mut output_format = OutputFormat::Text;
     let mut output_format_was_set = false;
     let mut output_beauty = false;
+    let mut output_html = None;
     let mut version = false;
     let mut method = Method::Get;
     let mut method_was_set = false;
@@ -210,6 +211,12 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                 output_format_was_set = true;
             }
             "--output-beauty" => output_beauty = true,
+            "--output-html" => {
+                output_html = Some(
+                    args.next()
+                        .ok_or_else(|| "--output-html requires a file path".to_owned())?,
+                )
+            }
             "-X" | "--request" => {
                 let value = attached_value
                     .or_else(|| args.next())
@@ -357,6 +364,9 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                     ));
                 }
             };
+        }
+        if output_html.is_none() {
+            output_html = profile.observability.output_html;
         }
         if access_log.is_none()
             && request_file.is_none()
@@ -599,6 +609,12 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     for expression in assertions {
         rload::assertions::evaluate(&summary, &expression)?;
     }
+    if let Some(path) = output_html {
+        let result = json_result(&summary, &replay_options, whitelist_was_set);
+        let report = rload::report::render(&result)?;
+        fs::write(&path, report)
+            .map_err(|error| format!("cannot write HTML report {path}: {error}"))?;
+    }
     if output_format == OutputFormat::Json {
         print_json(&summary, &replay_options, whitelist_was_set)?;
         return Ok(());
@@ -751,6 +767,19 @@ fn print_json(
     replay_options: &ReplayOptions,
     whitelist_was_set: bool,
 ) -> Result<(), String> {
+    let result = json_result(summary, replay_options, whitelist_was_set);
+    println!(
+        "{}",
+        serde_json::to_string(&result).map_err(|error| error.to_string())?
+    );
+    Ok(())
+}
+
+fn json_result(
+    summary: &RunSummary,
+    replay_options: &ReplayOptions,
+    whitelist_was_set: bool,
+) -> serde_json::Value {
     let methods = Method::ALL
         .into_iter()
         .filter_map(|method| {
@@ -786,7 +815,7 @@ fn print_json(
         .collect::<Vec<_>>();
     let skipped_total: u64 = summary.skipped_access_log_methods.values().sum();
     let skipped_request_file_total = summary.skipped_request_file_records.total();
-    let result = serde_json::json!({
+    serde_json::json!({
         "schema_version": 1,
         "summary": {
             "completed_requests": summary.completed,
@@ -844,12 +873,7 @@ fn print_json(
             "configured_rounds": summary.configured_replay_rounds,
             "completed_rounds": summary.completed_replay_rounds,
         },
-    });
-    println!(
-        "{}",
-        serde_json::to_string(&result).map_err(|error| error.to_string())?
-    );
-    Ok(())
+    })
 }
 
 fn print_beauty(
@@ -1046,6 +1070,7 @@ fn print_help() {
     println!("Usage: rload [OPTIONS] <URL>");
     println!("      --profile <FILE>  Load a v1 YAML workload profile");
     println!("      --assert <EXPR>   Fail when a final-summary assertion does not hold");
+    println!("      --output-html <FILE>  Write a self-contained offline HTML report");
     println!("\nOptions:");
     println!("  -n, --requests <N>  Number of requests to send instead of a duration run");
     println!("  -d, --duration <T>  Run duration [default: 10s]");
