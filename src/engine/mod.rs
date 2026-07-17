@@ -799,6 +799,9 @@ fn run_worker(
                     }
                     return Err(RunError::Io(error));
                 }
+                if connection.is_tls() {
+                    return Err(RunError::Tls(error.to_string()));
+                }
                 summary.socket_errors.connect += 1;
                 if connection.defer_reconnect_until_pace(poll.registry())? {
                     schedule_pacing(&mut pacing, token, connection);
@@ -819,6 +822,9 @@ fn run_worker(
                     continue;
                 }
                 if let Some(error) = connection.take_error()? {
+                    if connection.is_tls() {
+                        return Err(RunError::Tls(error.to_string()));
+                    }
                     summary.socket_errors.connect += 1;
                     if connection.defer_reconnect_until_pace(poll.registry())? {
                         schedule_pacing(&mut pacing, token, connection);
@@ -835,6 +841,9 @@ fn run_worker(
                 }
                 let generation = connection.generation();
                 if let Err(error) = connection.write_request() {
+                    if matches!(error, RunError::Tls(_)) {
+                        return Err(error);
+                    }
                     if !connection.has_started()
                         && let RunError::Io(error) = error
                     {
@@ -880,6 +889,9 @@ fn run_worker(
                         continue;
                     }
                     Err(RunError::Io(error)) if !connection.has_started() => {
+                        if connection.is_tls() {
+                            return Err(RunError::Tls(error.to_string()));
+                        }
                         summary.socket_errors.connect += 1;
                         if connection.defer_reconnect_until_pace(poll.registry())? {
                             schedule_pacing(&mut pacing, token, connection);

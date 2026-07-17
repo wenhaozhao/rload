@@ -169,6 +169,10 @@ impl Connection {
         self.started.is_some()
     }
 
+    pub(super) fn is_tls(&self) -> bool {
+        self.tls.is_some()
+    }
+
     pub(super) fn generation(&self) -> u64 {
         self.timer_generation
     }
