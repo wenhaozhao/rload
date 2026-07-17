@@ -138,13 +138,6 @@ mod tests {
     }
 
     fn request(method: Method, path: &str) -> ReplayRequest {
-        ReplayRequest {
-            method,
-            path: path.into(),
-            headers: Vec::new(),
-            body: Vec::new(),
-            body_present: false,
-            timestamp_micros: None,
-        }
+        ReplayRequest::new(method, path.into(), Vec::new(), Vec::new(), false, None)
     }
 }

@@ -9,10 +9,58 @@ use crate::{Method, RunError};
 pub(crate) struct ReplayRequest {
     pub(crate) method: Method,
     pub(crate) path: String,
-    pub(crate) headers: Vec<(String, String)>,
-    pub(crate) body: Vec<u8>,
-    pub(crate) body_present: bool,
+    payload: Option<Box<ReplayPayload>>,
     pub(crate) timestamp_micros: Option<i64>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ReplayPayload {
+    headers: Vec<(String, String)>,
+    body: Vec<u8>,
+    body_present: bool,
+}
+
+impl ReplayRequest {
+    pub(crate) fn new(
+        method: Method,
+        path: String,
+        headers: Vec<(String, String)>,
+        body: Vec<u8>,
+        body_present: bool,
+        timestamp_micros: Option<i64>,
+    ) -> Self {
+        let payload = (!headers.is_empty() || !body.is_empty() || body_present).then(|| {
+            Box::new(ReplayPayload {
+                headers,
+                body,
+                body_present,
+            })
+        });
+        Self {
+            method,
+            path,
+            payload,
+            timestamp_micros,
+        }
+    }
+
+    pub(crate) fn headers(&self) -> &[(String, String)] {
+        self.payload
+            .as_ref()
+            .map_or(&[], |payload| payload.headers.as_slice())
+    }
+
+    pub(crate) fn body(&self) -> &[u8] {
+        self.payload
+            .as_ref()
+            .map_or(&[], |payload| payload.body.as_slice())
+    }
+
+    pub(crate) fn body_present(&self) -> bool {
+        self.payload
+            .as_ref()
+            .is_some_and(|payload| payload.body_present)
+    }
 }
 
 pub(crate) struct AccessLogReplay {
@@ -81,14 +129,14 @@ fn parse_line(line: &str, line_number: usize) -> Result<ParsedLine, RunError> {
     if fields.next().is_some() {
         return Err(invalid("request field has unexpected fields"));
     }
-    Ok(ParsedLine::Request(ReplayRequest {
+    Ok(ParsedLine::Request(ReplayRequest::new(
         method,
-        path: path.to_owned(),
-        headers: Vec::new(),
-        body: Vec::new(),
-        body_present: false,
+        path.to_owned(),
+        Vec::new(),
+        Vec::new(),
+        false,
         timestamp_micros,
-    }))
+    )))
 }
 
 fn parse_timestamp(value: &str) -> Option<i64> {

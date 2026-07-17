@@ -97,7 +97,7 @@ impl Target {
             self.host_header
         )
         .into_bytes();
-        for (name, value) in &request.headers {
+        for (name, value) in request.headers() {
             encoded.extend_from_slice(name.as_bytes());
             encoded.extend_from_slice(b": ");
             encoded.extend_from_slice(value.as_bytes());
@@ -105,11 +105,11 @@ impl Target {
         }
         if !matches!(request.method, Method::Get | Method::Head) {
             encoded.extend_from_slice(
-                format!("Content-Length: {}\r\n", request.body.len()).as_bytes(),
+                format!("Content-Length: {}\r\n", request.body().len()).as_bytes(),
             );
         }
         encoded.extend_from_slice(b"Connection: keep-alive\r\n\r\n");
-        encoded.extend_from_slice(&request.body);
+        encoded.extend_from_slice(request.body());
         encoded.into()
     }
 }

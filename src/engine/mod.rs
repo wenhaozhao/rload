@@ -310,14 +310,15 @@ fn run_with_roots(
             }
         }
         RequestInput::Single(options, stages) => {
-            let request = ReplayRequest {
-                method: config.method,
-                path: target.path().to_owned(),
-                headers: options.headers,
-                body_present: options.body.is_some(),
-                body: options.body.unwrap_or_default(),
-                timestamp_micros: None,
-            };
+            let body_present = options.body.is_some();
+            let request = ReplayRequest::new(
+                config.method,
+                target.path().to_owned(),
+                options.headers,
+                options.body.unwrap_or_default(),
+                body_present,
+                None,
+            );
             validate_request(&request).map_err(RunError::InvalidConfig)?;
             let bytes = target.replay_request(&request);
             PreparedRun {

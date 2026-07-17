@@ -447,14 +447,15 @@ fn validate(request: JsonRequest, line: usize) -> Result<ReplayRequest, RunError
         method => return Err(invalid(line, &format!("unsupported method {method}"))),
     };
     let path = append_query(request.uri, request.args);
-    let replay = ReplayRequest {
+    let body_present = request.body.is_some();
+    let replay = ReplayRequest::new(
         method,
         path,
-        headers: request.headers.into_iter().collect(),
-        body_present: request.body.is_some(),
-        body: request.body.unwrap_or_default().into_bytes(),
-        timestamp_micros: None,
-    };
+        request.headers.into_iter().collect(),
+        request.body.unwrap_or_default().into_bytes(),
+        body_present,
+        None,
+    );
     validate_request(&replay).map_err(|message| invalid(line, &message))?;
     Ok(replay)
 }
@@ -485,14 +486,14 @@ pub(crate) fn validate_request(request: &ReplayRequest) -> Result<(), String> {
     if request.path.len() > MAX_URI_BYTES || !valid_origin_form(&request.path) {
         return Err("URI must use origin form".into());
     }
-    if request.body.len() > MAX_REQUEST_BODY_BYTES {
+    if request.body().len() > MAX_REQUEST_BODY_BYTES {
         return Err("body exceeds 512 KiB".into());
     }
-    if matches!(request.method, Method::Get | Method::Head) && request.body_present {
+    if matches!(request.method, Method::Get | Method::Head) && request.body_present() {
         return Err("GET and HEAD requests must not contain a body".into());
     }
     let mut header_bytes = 0;
-    for (name, value) in &request.headers {
+    for (name, value) in request.headers() {
         if !valid_header_name(name) {
             return Err(format!("invalid header name {name:?}"));
         }
