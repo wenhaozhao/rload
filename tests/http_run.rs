@@ -965,7 +965,8 @@ fn fixed_request_run_abandons_requests_after_connection_refusal() {
     .unwrap();
     assert_eq!(summary.completed, 0);
     assert_eq!(summary.abandoned_requests, 2);
-    assert_eq!(summary.socket_errors.connect, 1);
+    assert_eq!(summary.recovery_attempts, 3);
+    assert_eq!(summary.socket_errors.connect, 4);
 }
 
 #[test]

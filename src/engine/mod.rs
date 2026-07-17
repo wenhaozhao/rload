@@ -821,7 +821,9 @@ fn run_worker(
                     schedule_pacing(&mut pacing, token, connection);
                     continue;
                 }
-                if !connection.retry_address(error, poll.registry(), token)? {
+                let retried = connection.retry_address(error, poll.registry(), token)?;
+                summary.recovery_attempts += connection.take_recovery_attempts();
+                if !retried {
                     summary.abandoned_requests += connection.unfinished_requests();
                     active -= 1;
                     continue;
@@ -846,7 +848,9 @@ fn run_worker(
                         schedule_pacing(&mut pacing, token, connection);
                         continue;
                     }
-                    if !connection.retry_address(error, poll.registry(), token)? {
+                    let retried = connection.retry_address(error, poll.registry(), token)?;
+                    summary.recovery_attempts += connection.take_recovery_attempts();
+                    if !retried {
                         summary.abandoned_requests += connection.unfinished_requests();
                         active -= 1;
                         continue;
@@ -864,7 +868,9 @@ fn run_worker(
                         && let RunError::Io(error) = error
                     {
                         summary.socket_errors.connect += 1;
-                        if !connection.retry_address(error, poll.registry(), token)? {
+                        let retried = connection.retry_address(error, poll.registry(), token)?;
+                        summary.recovery_attempts += connection.take_recovery_attempts();
+                        if !retried {
                             summary.abandoned_requests += connection.unfinished_requests();
                             active -= 1;
                             continue;
@@ -923,7 +929,9 @@ fn run_worker(
                             schedule_pacing(&mut pacing, token, connection);
                             continue;
                         }
-                        if !connection.retry_address(error, poll.registry(), token)? {
+                        let retried = connection.retry_address(error, poll.registry(), token)?;
+                        summary.recovery_attempts += connection.take_recovery_attempts();
+                        if !retried {
                             summary.abandoned_requests += connection.unfinished_requests();
                             active -= 1;
                             continue;
@@ -1015,7 +1023,10 @@ fn run_worker(
                     summary.socket_errors.connect += 1;
                     let timeout_error =
                         std::io::Error::new(std::io::ErrorKind::TimedOut, "connection timed out");
-                    if !connection.retry_address(timeout_error, poll.registry(), Token(token))? {
+                    let retried =
+                        connection.retry_address(timeout_error, poll.registry(), Token(token))?;
+                    summary.recovery_attempts += connection.take_recovery_attempts();
+                    if !retried {
                         summary.abandoned_requests += connection.unfinished_requests();
                         active -= 1;
                     } else {

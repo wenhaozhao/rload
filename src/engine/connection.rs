@@ -311,15 +311,42 @@ impl Connection {
         token: Token,
     ) -> Result<bool, RunError> {
         registry.deregister(self.stream.socket_mut())?;
+        if self.limit.deadline().is_none() {
+            let next = (self.address_index + 1) % self.addresses.len();
+            if self.recovery_attempts >= FIXED_REQUEST_RECOVERY_ATTEMPTS {
+                self.done = true;
+                return Ok(false);
+            }
+            let (stream, address_index) = loop {
+                self.pending_recovery_attempts += 1;
+                self.recovery_attempts += 1;
+                match connect_from(&self.addresses, next) {
+                    Ok(connection) => break connection,
+                    Err(RunError::Io(_)) => {
+                        if self.recovery_attempts >= FIXED_REQUEST_RECOVERY_ATTEMPTS {
+                            self.done = true;
+                            return Ok(false);
+                        }
+                        std::thread::sleep(Duration::from_millis(1));
+                    }
+                    Err(error) => return Err(error),
+                }
+            };
+            self.stream = Transport::new(stream, self.tls.as_ref())?;
+            self.address_index = address_index;
+            self.connected_at = Instant::now();
+            self.awaiting_pace = false;
+            self.reconnect_at_pace = false;
+            self.timer_generation += 1;
+            registry.register(
+                self.stream.socket_mut(),
+                token,
+                Interest::READABLE | Interest::WRITABLE,
+            )?;
+            return Ok(true);
+        }
         let next = self.address_index + 1;
-        let next = if next < self.addresses.len() {
-            next
-        } else if self.limit.deadline().is_some() {
-            0
-        } else {
-            self.done = true;
-            return Ok(false);
-        };
+        let next = if next < self.addresses.len() { next } else { 0 };
         let (stream, address_index) = connect_from(&self.addresses, next)?;
         self.stream = Transport::new(stream, self.tls.as_ref())?;
         self.address_index = address_index;
@@ -353,7 +380,7 @@ impl Connection {
             return Ok(false);
         }
         if self.limit.deadline().is_none()
-            && self.recovery_attempts == FIXED_REQUEST_RECOVERY_ATTEMPTS
+            && self.recovery_attempts >= FIXED_REQUEST_RECOVERY_ATTEMPTS
         {
             self.done = true;
             registry.deregister(self.stream.socket_mut())?;
@@ -369,7 +396,7 @@ impl Connection {
             match connect_from(&self.addresses, 0) {
                 Ok(connection) => break connection,
                 Err(RunError::Io(_)) if fixed_limit => {
-                    if self.recovery_attempts == FIXED_REQUEST_RECOVERY_ATTEMPTS {
+                    if self.recovery_attempts >= FIXED_REQUEST_RECOVERY_ATTEMPTS {
                         self.done = true;
                         return Ok(false);
                     }
