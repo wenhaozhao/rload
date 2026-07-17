@@ -799,8 +799,10 @@ fn run_worker(
                     }
                     return Err(RunError::Io(error));
                 }
-                if connection.is_tls() {
-                    return Err(RunError::Tls(error.to_string()));
+                if connection.is_tls_handshaking()
+                    && let Err(RunError::Tls(error)) = connection.write_request()
+                {
+                    return Err(RunError::Tls(error));
                 }
                 summary.socket_errors.connect += 1;
                 if connection.defer_reconnect_until_pace(poll.registry())? {
@@ -822,8 +824,10 @@ fn run_worker(
                     continue;
                 }
                 if let Some(error) = connection.take_error()? {
-                    if connection.is_tls() {
-                        return Err(RunError::Tls(error.to_string()));
+                    if connection.is_tls_handshaking()
+                        && let Err(RunError::Tls(error)) = connection.write_request()
+                    {
+                        return Err(RunError::Tls(error));
                     }
                     summary.socket_errors.connect += 1;
                     if connection.defer_reconnect_until_pace(poll.registry())? {
@@ -889,8 +893,10 @@ fn run_worker(
                         continue;
                     }
                     Err(RunError::Io(error)) if !connection.has_started() => {
-                        if connection.is_tls() {
-                            return Err(RunError::Tls(error.to_string()));
+                        if connection.is_tls_handshaking()
+                            && let Err(RunError::Tls(error)) = connection.write_request()
+                        {
+                            return Err(RunError::Tls(error));
                         }
                         summary.socket_errors.connect += 1;
                         if connection.defer_reconnect_until_pace(poll.registry())? {

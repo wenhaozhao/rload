@@ -169,8 +169,8 @@ impl Connection {
         self.started.is_some()
     }
 
-    pub(super) fn is_tls(&self) -> bool {
-        self.tls.is_some()
+    pub(super) fn is_tls_handshaking(&self) -> bool {
+        self.stream.is_tls_handshaking()
     }
 
     pub(super) fn generation(&self) -> u64 {
@@ -466,6 +466,10 @@ enum Transport {
 }
 
 impl Transport {
+    fn is_tls_handshaking(&self) -> bool {
+        matches!(self, Self::Tls(stream) if stream.conn.is_handshaking())
+    }
+
     fn new(stream: TcpStream, tls: Option<&TlsParameters>) -> Result<Self, RunError> {
         match tls {
             Some(tls) => {
