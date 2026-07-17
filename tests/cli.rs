@@ -97,6 +97,7 @@ fn cli_runs_http_load_and_prints_summary() {
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert!(stdout.contains("1 requests completed"));
+    assert!(stdout.contains("0 requests abandoned"));
     assert!(stdout.contains("2 response body B read"));
     assert!(stdout.contains("Requests/sec:"));
     assert!(stdout.contains("Load requests/sec:"));
@@ -159,6 +160,7 @@ fn cli_loads_a_static_v1_profile() {
     );
     let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(result["summary"]["completed_requests"], 1);
+    assert_eq!(result["summary"]["abandoned_requests"], 0);
     let html = fs::read_to_string(&report).unwrap();
     fs::remove_file(report).unwrap();
     assert!(html.contains("<title>rload report</title>"));
