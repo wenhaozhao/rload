@@ -36,8 +36,27 @@ jobs:
       - name: Run tests
         run: cargo test --all-targets
 
+      - name: Verify Windows paths and socket recovery
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cargo test --test cli line_ending_normalization_accepts_windows_fixtures
+          cargo test --test cli cli_replays_jsonl_post_with_headers_and_body
+          cargo test --test http_run fixed_request_run_abandons_requests_after_connection_refusal
+
       - name: Verify package
         run: cargo package --allow-dirty
 
       - name: Smoke test release binary
         run: cargo run --release -- --help
+
+      - name: Invoke release binary from PowerShell
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cargo build --release
+          $metadata = cargo metadata --no-deps --format-version 1 | ConvertFrom-Json
+          $expected = "rload $($metadata.packages[0].version)"
+          $actual = & .\target\release\rload.exe --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($actual -ne $expected) { throw "expected '$expected', got '$actual'" }
