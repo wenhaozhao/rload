@@ -631,7 +631,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     print_optional_duration("Maximum latency", summary.latencies.maximum());
     print_optional_duration("Median latency", summary.latencies.median());
     println!("Latency Distribution");
-    for percentile in [50.0, 75.0, 90.0, 99.0] {
+    for percentile in [50.0, 75.0, 90.0, 95.0, 99.0] {
         if let Some(value) = summary.latencies.percentile(percentile) {
             println!("  {percentile:>3.0}% {value:>10.2?}");
         } else {
@@ -836,6 +836,7 @@ fn json_result(
             "p50_us": summary.latencies.percentile(50.0).map(duration_us),
             "p75_us": summary.latencies.percentile(75.0).map(duration_us),
             "p90_us": summary.latencies.percentile(90.0).map(duration_us),
+            "p95_us": summary.latencies.percentile(95.0).map(duration_us),
             "p99_us": summary.latencies.percentile(99.0).map(duration_us),
             "overflow_count": summary.latencies.overflow_count(),
             "correction_interval_us": summary.coordinated_omission_interval.map(duration_us),
@@ -908,7 +909,7 @@ fn print_beauty(
     print_beauty_optional_duration("Maximum", summary.latencies.maximum());
     print_beauty_optional_duration("Median", summary.latencies.median());
     println!("  Percentile                Value");
-    for percentile in [50.0, 75.0, 90.0, 99.0] {
+    for percentile in [50.0, 75.0, 90.0, 95.0, 99.0] {
         if let Some(value) = summary.latencies.percentile(percentile) {
             println!("  {percentile:>6.0}%              {value:>12.2?}");
         } else {

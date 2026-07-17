@@ -283,6 +283,7 @@ fn cli_outputs_machine_readable_json_summary() {
     assert!(result["latency"]["minimum_us"].as_u64().is_some());
     assert!(result["latency"]["maximum_us"].as_u64().is_some());
     assert_eq!(result["latency"]["median_us"], result["latency"]["p50_us"]);
+    assert!(result["latency"]["p95_us"].as_u64().is_some());
     assert!(result["latency"]["p99_us"].as_u64().is_some());
     assert_eq!(result["replay"]["configured_rate"], serde_json::Value::Null);
     assert_eq!(result["pacing"]["stages"][0]["rate"], 10);

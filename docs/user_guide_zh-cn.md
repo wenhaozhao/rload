@@ -341,6 +341,7 @@ Socket errors: connect 0, read 0, write 0, timeout 0
     "p50_us": 3810,                     // 与 median_us 相同
     "p75_us": 4910,
     "p90_us": 8200,
+    "p95_us": 12100,
     "p99_us": 18150
   },
   "socket_errors": {                    // 网络套接字错误细分计数

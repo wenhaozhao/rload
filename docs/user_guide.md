@@ -341,6 +341,7 @@ Here is a full breakdown of the output JSON schema:
     "p50_us": 3810,
     "p75_us": 4910,
     "p90_us": 8200,
+    "p95_us": 12100,
     "p99_us": 18150
   },
   "socket_errors": {
