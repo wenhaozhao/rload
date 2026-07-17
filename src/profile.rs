@@ -4,6 +4,7 @@ use std::path::Path;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Profile {
     pub version: String,
     pub target: Target,
@@ -18,6 +19,7 @@ pub struct Profile {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Assertion {
     pub expression: String,
     #[serde(default)]
@@ -25,11 +27,13 @@ pub struct Assertion {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Target {
     pub url: String,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Runner {
     #[serde(default = "default_threads")]
     pub threads: usize,
@@ -52,6 +56,7 @@ impl Default for Runner {
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LoadProfile {
     pub mode: Option<String>,
     #[serde(rename = "static")]
@@ -61,6 +66,7 @@ pub struct LoadProfile {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct StaticRequest {
     #[serde(default = "default_method")]
     pub method: String,
@@ -70,6 +76,7 @@ pub struct StaticRequest {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LogReplay {
     pub path: String,
     pub format: String,
@@ -90,6 +97,7 @@ pub struct LogReplay {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Pacing {
     pub mode: String,
     #[serde(default)]
@@ -101,12 +109,14 @@ pub struct Pacing {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PacingStage {
     pub duration: String,
     pub target_rps: u64,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ReplayFilter {
     #[serde(default)]
     pub allowed_methods: Vec<String>,
@@ -115,6 +125,7 @@ pub struct ReplayFilter {
 }
 
 #[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Observability {
     #[serde(default)]
     pub output_format: Option<String>,

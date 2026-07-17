@@ -166,6 +166,29 @@ fn cli_loads_a_static_v1_profile() {
 }
 
 #[test]
+fn cli_rejects_unknown_profile_fields_before_running() {
+    let path = env::temp_dir().join(format!("rload-invalid-profile-{}.yaml", std::process::id()));
+    fs::write(
+        &path,
+        "version: v1\ntarget:\n  url: http://127.0.0.1:1/\n  misspelled_url: ignored\n",
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args(["--profile", path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    fs::remove_file(path).unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(
+        stderr.contains("unknown field `misspelled_url`"),
+        "{stderr}"
+    );
+}
+
+#[test]
 fn cli_loads_an_access_log_replay_profile() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
