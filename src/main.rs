@@ -890,6 +890,7 @@ fn print_beauty(
     println!();
     println!("Summary");
     println!("  Requests completed   {:>12}", summary.completed);
+    println!("  Requests abandoned   {:>12}", summary.abandoned_requests);
     println!("  Bytes read           {:>12}", summary.read_bytes);
     println!("  Response body bytes  {:>12}", summary.response_body_bytes);
     println!("  Load window          {:>12.2?}", summary.load_runtime);
