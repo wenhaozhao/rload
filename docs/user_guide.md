@@ -140,8 +140,8 @@ rload --profile rload.yaml --assert "completed > 0"
 
 Assertions evaluate the final summary and return a non-zero status when they
 fail. Supported metrics are `rps`, `mean`, `p50`, `p90`, `p95`, `p99`,
-`error_rate`, `status_errors`, `socket_errors`, `completed`, and
-`abandoned_requests`. Latency values
+`error_rate`, `status_errors`, `socket_errors`, `completed`,
+`abandoned_requests`, and `recovery_attempts`. Latency values
 use `us`, `ms`, or `s` units. `--output-html report.html` writes a deterministic,
 self-contained report that opens without network access.
 
@@ -351,7 +351,7 @@ Socket errors: connect 0, read 0, write 0, timeout 0
 
 #### Connection Recovery:
 - **In Duration runs (`-d`)**: If a socket error occurs, the worker thread automatically isolates the failed connection, tears it down, performs a fresh TCP/TLS handshake, and resumes load generation.
-- **In Request-limited runs (`-n`)**: Recovery is disabled. A hard connection error terminates the process immediately to prevent infinite waiting on permanently dead servers.
+- **In Request-limited runs (`-n`)**: Each logical request has a budget of three recovery attempts. When the budget is exhausted, the request is reported as abandoned and the run returns a partial-completion summary. Retrying after request bytes have been written is at-least-once and can duplicate target-side effects.
 
 ---
 

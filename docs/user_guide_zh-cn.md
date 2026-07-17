@@ -136,7 +136,7 @@ assertions:
 rload --profile rload.yaml --assert "completed > 0"
 ```
 
-断言基于最终汇总指标评估；失败时进程返回非零状态。支持 `rps`、`mean`、`p50`、`p90`、`p95`、`p99`、`error_rate`、`status_errors`、`socket_errors` 和 `completed`；延迟值支持 `us`、`ms`、`s` 单位。`--output-html report.html` 会写入一个无需网络即可打开、且结果确定的独立报告文件。
+断言基于最终汇总指标评估；失败时进程返回非零状态。支持 `rps`、`mean`、`p50`、`p90`、`p95`、`p99`、`error_rate`、`status_errors`、`socket_errors`、`completed`、`abandoned_requests` 和 `recovery_attempts`；延迟值支持 `us`、`ms`、`s` 单位。`--output-html report.html` 会写入一个无需网络即可打开、且结果确定的独立报告文件。
 
 ---
 
@@ -344,7 +344,7 @@ Socket errors: connect 0, read 0, write 0, timeout 0
 
 #### 重连自愈机制：
 - **在持续时间模式（`-d`）下**：如果发生任意套接字异常，工作线程会自动隔离故障连接，执行优雅销毁，重新建立 TCP 握手并自动完成 TLS SNI 证书协商，确保在整个测试时间内源源不断地生成预定压力。
-- **在固定请求数模式（`-n`）下**：重连自愈被禁用。连接出错将导致程序立即报错退出，从而防止因目标服务器永久宕机而导致测试进程无限等待。
+- **在固定请求数模式（`-n`）下**：每个逻辑请求最多进行三次恢复。预算耗尽时，该请求会被报告为已放弃，运行返回部分完成摘要。请求字节已经写出后的重试具有至少一次语义，可能重复触发目标端副作用。
 
 ---
 

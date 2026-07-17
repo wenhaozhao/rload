@@ -134,17 +134,17 @@ are a 10-second run with two worker threads and ten connections.
 
 During a duration-limited run, a request timeout, reset, or premature EOF is
 counted as a socket error and the affected connection is rebuilt while time
-remains. Request-count-limited runs still return an error for these failures so
-a permanently unavailable target cannot make a finite run wait forever.
-Socket errors are reported using wrk-style `connect`, `read`, `write`, and
-`timeout` categories; failure and recovery are isolated to the affected
-connection. If a duration-limited target remains unresponsive for the whole
+remains. Request-count-limited runs make at most three recovery attempts for
+each logical request. On exhaustion, the request is counted as abandoned and
+the command returns a partial-completion summary rather than waiting forever or
+failing the complete run. A retry after request bytes have been written has
+at-least-once semantics and can duplicate target-side effects; use idempotent
+targets or idempotency keys where that matters. Socket errors are reported
+using wrk-style `connect`, `read`, `write`, and `timeout` categories, while
+`recovery_attempts` and `abandoned_requests` expose recovery cost and partial
+completion. If a duration-limited target remains unresponsive for the whole
 run, the command still returns a valid summary with zero completed requests and
-the accumulated timeout count after the configured duration expires. The same
-bounded behavior applies when every connection attempt is refused: attempts are
-counted as `connect` errors and the run ends normally at its duration limit. If
-the target becomes available again before that limit, affected connections
-resume sending requests without restarting the load-test process.
+the accumulated timeout count after the configured duration expires.
 
 Access-log replay reads the quoted Nginx `$request` field, preserves its
 origin-form URI (including the query string), and cycles through the log in
