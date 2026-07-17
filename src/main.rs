@@ -624,6 +624,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
         return Ok(());
     }
     println!("{} requests completed", summary.completed);
+    println!("{} requests abandoned", summary.abandoned_requests);
     println!("{} B read", summary.read_bytes);
     println!("{} response body B read", summary.response_body_bytes);
     print_optional_duration("Average latency", summary.latencies.average());
@@ -819,6 +820,7 @@ fn json_result(
         "schema_version": 1,
         "summary": {
             "completed_requests": summary.completed,
+            "abandoned_requests": summary.abandoned_requests,
             "read_bytes": summary.read_bytes,
             "response_body_bytes": summary.response_body_bytes,
             "runtime_us": duration_us(summary.runtime),

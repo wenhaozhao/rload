@@ -22,6 +22,8 @@ use crate::{
 };
 use connection::{Connection, Expiration, TlsParameters};
 
+const FIXED_REQUEST_CONNECTION_ATTEMPTS: u8 = 3;
+
 pub fn run(config: RunConfig) -> Result<RunSummary, RunError> {
     run_with_roots(
         config,
@@ -709,28 +711,38 @@ fn run_worker(
     let mut events = Events::with_capacity(limits.len().max(16));
     let mut connections = Vec::with_capacity(limits.len());
     let mut summary = RunSummary::default();
-    for (index, limit) in limits.into_iter().enumerate() {
-        let mut connection = loop {
+    for limit in limits {
+        let mut attempts = 0;
+        let connection = loop {
             match Connection::connect(
                 Arc::clone(&addresses),
                 Arc::clone(&requests),
                 limit,
                 tls.clone(),
             ) {
-                Ok(connection) => break connection,
-                Err(error) => {
-                    let Some(deadline) = limit.deadline() else {
-                        return Err(error);
-                    };
+                Ok(connection) => break Some(connection),
+                Err(_) => {
                     summary.socket_errors.connect += 1;
-                    if Instant::now() >= deadline {
-                        return Ok(summary);
+                    if let Some(deadline) = limit.deadline() {
+                        if Instant::now() >= deadline {
+                            return Ok(summary);
+                        }
+                        std::thread::sleep(Duration::from_millis(1));
+                        continue;
+                    }
+                    attempts += 1;
+                    if attempts == FIXED_REQUEST_CONNECTION_ATTEMPTS {
+                        summary.abandoned_requests += limit.requests().expect("fixed limit");
+                        break None;
                     }
                     std::thread::sleep(Duration::from_millis(1));
                 }
             }
         };
-        connection.register(poll.registry(), Token(index))?;
+        let Some(mut connection) = connection else {
+            continue;
+        };
+        connection.register(poll.registry(), Token(connections.len()))?;
         connections.push(connection);
     }
 
@@ -1034,6 +1046,13 @@ impl ConnectionLimit {
         match self {
             Self::Requests(_) => None,
             Self::Deadline(deadline) => Some(deadline),
+        }
+    }
+
+    fn requests(self) -> Option<u64> {
+        match self {
+            Self::Requests(requests) => Some(requests),
+            Self::Deadline(_) => None,
         }
     }
 }
