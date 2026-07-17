@@ -108,6 +108,36 @@ rload -t 4 -c 100 -d 30s http://127.0.0.1:8080/
 rload -t 2 -c 50 -n 10000 http://127.0.0.1:8080/
 ```
 
+### 版本化 Profile 与 CI 门禁
+
+使用 `--profile` 加载 v1 YAML 工作负载；显式 CLI 参数优先于 profile。profile 可描述静态或回放工作负载、回放过滤和步调、最终断言以及可选的离线 HTML 报告：
+
+```yaml
+version: v1
+target:
+  url: http://127.0.0.1:8080/
+runner:
+  threads: 2
+  connections: 20
+  duration: 30s
+load_profile:
+  mode: static
+  static:
+    method: GET
+observability:
+  output_format: json
+  output_html: report.html
+assertions:
+  - expression: "p95 < 50ms"
+  - expression: "error_rate < 0.01"
+```
+
+```bash
+rload --profile rload.yaml --assert "completed > 0"
+```
+
+断言基于最终汇总指标评估；失败时进程返回非零状态。支持 `rps`、`mean`、`p50`、`p90`、`p95`、`p99`、`error_rate`、`status_errors`、`socket_errors` 和 `completed`；延迟值支持 `us`、`ms`、`s` 单位。`--output-html report.html` 会写入一个无需网络即可打开、且结果确定的独立报告文件。
+
 ---
 
 ### 自定义单请求属性

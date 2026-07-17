@@ -10,6 +10,9 @@ All notable changes to rload are documented here.
   per-method reports while preserving the existing P50 JSON field.
 - Record runtime failures and continue valid load runs, with categorized
   recovery and bounded retry behavior for fixed-request workloads.
+- Include P95 latency in text, JSON, and HTML reports.
+- Add YAML workload profiles, final-summary assertions, and self-contained HTML
+  reports for CI-oriented benchmarks.
 
 ## [0.2.4] - 2026-07-15
 

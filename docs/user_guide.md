@@ -108,6 +108,42 @@ Instead of running for a fixed time, send exactly 10,000 requests:
 rload -t 2 -c 50 -n 10000 http://127.0.0.1:8080/
 ```
 
+### Version-Controlled Profiles and CI Gates
+
+Use `--profile` to load a v1 YAML workload. Explicit CLI options override the
+profile. A profile can define static or replay workloads, replay filtering and
+pacing, final assertions, and an optional offline HTML report:
+
+```yaml
+version: v1
+target:
+  url: http://127.0.0.1:8080/
+runner:
+  threads: 2
+  connections: 20
+  duration: 30s
+load_profile:
+  mode: static
+  static:
+    method: GET
+observability:
+  output_format: json
+  output_html: report.html
+assertions:
+  - expression: "p95 < 50ms"
+  - expression: "error_rate < 0.01"
+```
+
+```bash
+rload --profile rload.yaml --assert "completed > 0"
+```
+
+Assertions evaluate the final summary and return a non-zero status when they
+fail. Supported metrics are `rps`, `mean`, `p50`, `p90`, `p95`, `p99`,
+`error_rate`, `status_errors`, `socket_errors`, and `completed`. Latency values
+use `us`, `ms`, or `s` units. `--output-html report.html` writes a deterministic,
+self-contained report that opens without network access.
+
 ---
 
 ### Customizing Individual Requests
