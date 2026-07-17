@@ -1803,12 +1803,16 @@ fn cli_accepts_wrk_timeout_and_latency_options() {
         .output()
         .unwrap();
 
-    assert!(!output.status.success());
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(started.elapsed() < Duration::from_secs(1));
     assert!(
-        String::from_utf8(output.stderr)
+        String::from_utf8(output.stdout)
             .unwrap()
-            .contains("timed out")
+            .contains("1 requests abandoned")
     );
     server.join().unwrap();
 }

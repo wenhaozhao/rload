@@ -797,6 +797,16 @@ fn run_worker(
                         active -= 1;
                         continue;
                     }
+                    if connection.is_done() {
+                        if read_error {
+                            summary.socket_errors.read += 1;
+                        } else {
+                            summary.socket_errors.write += 1;
+                        }
+                        summary.abandoned_requests += connection.unfinished_requests();
+                        active -= 1;
+                        continue;
+                    }
                     return Err(RunError::Io(error));
                 }
                 if connection.is_tls_handshaking()
@@ -872,6 +882,12 @@ fn run_worker(
                         active -= 1;
                         continue;
                     }
+                    if connection.is_done() {
+                        summary.socket_errors.write += 1;
+                        summary.abandoned_requests += connection.unfinished_requests();
+                        active -= 1;
+                        continue;
+                    }
                     return Err(error);
                 }
                 connection.refresh_interest(poll.registry(), token)?;
@@ -924,6 +940,12 @@ fn run_worker(
                             active -= 1;
                             continue;
                         }
+                        if connection.is_done() {
+                            summary.socket_errors.read += 1;
+                            summary.abandoned_requests += connection.unfinished_requests();
+                            active -= 1;
+                            continue;
+                        }
                         return Err(RunError::Io(error));
                     }
                     Err(error) => return Err(error),
@@ -970,6 +992,9 @@ fn run_worker(
                         schedule_deadline(&mut deadlines, Token(token), connection, timeout);
                         schedule_pacing(&mut pacing, Token(token), connection);
                     } else if connection.stop_after_duration_error(poll.registry())? {
+                        active -= 1;
+                    } else if connection.is_done() {
+                        summary.abandoned_requests += connection.unfinished_requests();
                         active -= 1;
                     } else {
                         return Err(RunError::Io(std::io::Error::new(

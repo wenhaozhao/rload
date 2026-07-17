@@ -15,6 +15,8 @@ use crate::RunError;
 use crate::protocol::response::{ParsedResponse, ResponseDecoder};
 use crate::request_sequence::RequestSequence;
 
+const FIXED_REQUEST_RECOVERY_ATTEMPTS: u8 = 3;
+
 pub(super) struct Connection {
     stream: Transport,
     addresses: Arc<[SocketAddr]>,
@@ -35,6 +37,7 @@ pub(super) struct Connection {
     done: bool,
     timer_generation: u64,
     pending_read_bytes: u64,
+    recovery_attempts: u8,
     tls: Option<TlsParameters>,
 }
 
@@ -80,6 +83,7 @@ impl Connection {
             done: false,
             timer_generation: 0,
             pending_read_bytes: 0,
+            recovery_attempts: 0,
             tls,
         })
     }
@@ -235,6 +239,7 @@ impl Connection {
         token: Token,
     ) -> Result<bool, RunError> {
         self.completed += 1;
+        self.recovery_attempts = 0;
         if !self.limit.should_continue(self.completed) {
             self.done = true;
             registry.deregister(self.stream.socket_mut())?;
@@ -336,15 +341,36 @@ impl Connection {
         registry: &Registry,
         token: Token,
     ) -> Result<bool, RunError> {
-        if self
-            .limit
-            .deadline()
-            .is_none_or(|deadline| deadline <= Instant::now())
+        if let Some(deadline) = self.limit.deadline()
+            && deadline <= Instant::now()
         {
             return Ok(false);
         }
+        if self.limit.deadline().is_none()
+            && self.recovery_attempts == FIXED_REQUEST_RECOVERY_ATTEMPTS
+        {
+            self.done = true;
+            registry.deregister(self.stream.socket_mut())?;
+            return Ok(false);
+        }
         registry.deregister(self.stream.socket_mut())?;
-        let (stream, address_index) = connect_from(&self.addresses, 0)?;
+        let fixed_limit = self.limit.deadline().is_none();
+        let (stream, address_index) = loop {
+            if fixed_limit {
+                self.recovery_attempts += 1;
+            }
+            match connect_from(&self.addresses, 0) {
+                Ok(connection) => break connection,
+                Err(RunError::Io(_)) if fixed_limit => {
+                    if self.recovery_attempts == FIXED_REQUEST_RECOVERY_ATTEMPTS {
+                        self.done = true;
+                        return Ok(false);
+                    }
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+                Err(error) => return Err(error),
+            }
+        };
         self.stream = Transport::new(stream, self.tls.as_ref())?;
         self.address_index = address_index;
         self.write_offset = 0;

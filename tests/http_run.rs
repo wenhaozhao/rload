@@ -790,11 +790,13 @@ fn run_times_out_unresponsive_request_near_configured_deadline() {
     };
     let started = std::time::Instant::now();
 
-    let error = run(config).unwrap_err();
+    let summary = run(config).unwrap();
 
-    assert!(matches!(error, RunError::Io(_)));
+    assert_eq!(summary.completed, 0);
+    assert_eq!(summary.abandoned_requests, 1);
+    assert_eq!(summary.socket_errors.timeout, 4);
     assert!(started.elapsed() >= Duration::from_millis(20));
-    assert!(started.elapsed() < Duration::from_millis(80));
+    assert!(started.elapsed() < Duration::from_millis(150));
     server.join().unwrap();
 }
 
@@ -963,6 +965,32 @@ fn fixed_request_run_abandons_requests_after_connection_refusal() {
     assert_eq!(summary.completed, 0);
     assert_eq!(summary.abandoned_requests, 2);
     assert_eq!(summary.socket_errors.connect, 1);
+}
+
+#[test]
+fn fixed_request_run_abandons_request_after_recovery_budget_is_exhausted() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        for _ in 0..4 {
+            let (mut stream, _) = listener.accept().unwrap();
+            read_request_head(&mut stream).unwrap();
+        }
+    });
+    let summary = run(RunConfig {
+        url: format!("http://{address}/"),
+        method: Method::Get,
+        limit: RunLimit::Requests(1),
+        connections: 1,
+        threads: 1,
+        timeout: Duration::from_millis(20),
+    })
+    .unwrap();
+
+    assert_eq!(summary.completed, 0);
+    assert_eq!(summary.abandoned_requests, 1);
+    assert_eq!(summary.socket_errors.read, 4);
+    server.join().unwrap();
 }
 
 #[test]
