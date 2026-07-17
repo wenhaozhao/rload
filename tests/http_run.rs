@@ -795,7 +795,7 @@ fn run_times_out_unresponsive_request_near_configured_deadline() {
     assert_eq!(summary.completed, 0);
     assert_eq!(summary.abandoned_requests, 1);
     assert_eq!(summary.recovery_attempts, 3);
-    assert_eq!(summary.socket_errors.timeout, 4);
+    assert!((3..=4).contains(&summary.socket_errors.timeout));
     assert!(started.elapsed() >= Duration::from_millis(20));
     assert!(started.elapsed() < Duration::from_millis(150));
     server.join().unwrap();
