@@ -68,6 +68,7 @@ fn metric_value(summary: &RunSummary, metric: &str) -> Result<f64, String> {
         "status_errors" => Ok(summary.status_errors as f64),
         "socket_errors" => Ok(summary.socket_errors.total() as f64),
         "completed" => Ok(summary.completed as f64),
+        "abandoned_requests" => Ok(summary.abandoned_requests as f64),
         _ => Err(format!("unknown assertion metric: {metric}")),
     }
 }
@@ -130,7 +131,9 @@ mod tests {
         summary.completed = 10;
         summary.status_errors = 1;
         summary.socket_errors.connect = 1;
+        summary.abandoned_requests = 2;
         assert!(evaluate(&summary, "completed == 10").is_ok());
+        assert!(evaluate(&summary, "abandoned_requests == 2").is_ok());
         assert!(evaluate(&summary, "error_rate <= 0.19").is_ok());
         assert!(
             evaluate(&summary, "status_errors == 0")

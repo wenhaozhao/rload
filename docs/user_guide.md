@@ -140,7 +140,8 @@ rload --profile rload.yaml --assert "completed > 0"
 
 Assertions evaluate the final summary and return a non-zero status when they
 fail. Supported metrics are `rps`, `mean`, `p50`, `p90`, `p95`, `p99`,
-`error_rate`, `status_errors`, `socket_errors`, and `completed`. Latency values
+`error_rate`, `status_errors`, `socket_errors`, `completed`, and
+`abandoned_requests`. Latency values
 use `us`, `ms`, or `s` units. `--output-html report.html` writes a deterministic,
 self-contained report that opens without network access.
 
