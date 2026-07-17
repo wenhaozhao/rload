@@ -61,3 +61,33 @@ each CLI change, the review must list the applicable categories and include:
 The reviewer must explicitly report whether composability, consistency, and
 mutual exclusion were checked, and identify any untested combination accepted
 for follow-up.
+
+## Metric change archive
+
+Starting with v0.3.0, every change that targets or materially affects a
+measured metric must have a committed archive entry under
+`benchmarks/metric_changes/`. This includes throughput, latency percentiles,
+memory, CPU, byte accuracy, error rates, recovery counters, load accuracy, and
+other release or operational metrics.
+
+The archive entry is required whether the metric improves, regresses, or is
+compensated elsewhere. It must record:
+
+- the optimization proposal and expected mechanism;
+- the workload, environment, baseline, target, and raw-result locations;
+- observed regression data, including distributions rather than averages when
+  tail latency is involved;
+- the demonstrated or best-supported regression cause, with uncertainty
+  stated explicitly;
+- alternatives considered and the selected optimization, compensation, or
+  acceptance decision;
+- post-change measurements against the same gate;
+- correctness guardrails, rollback instructions, and revisit triggers; and
+- the commits and validation report associated with the decision.
+
+A failed metric run must not be overwritten or omitted after a later passing
+run. Both results and the reason for accepting, compensating, or fixing the
+regression remain part of the archive. Raw benchmark directories may remain
+outside version control when they are too large, but their paths and summarized
+measurements must be committed. A metric-affecting change is not review-complete
+and must not be released without its archive entry.

@@ -265,6 +265,12 @@ Use at least five alternating paired runs for statistical accuracy decisions;
 record throughput, latency percentiles, errors, and peak RSS, and retain the
 raw result directories with the report.
 
+Starting with v0.3.0, every metric optimization, regression, compensation, or
+accepted tradeoff must also have a committed entry in
+`benchmarks/metric_changes/` following its template. Release sign-off must
+confirm that failed measurements remain archived alongside later passing
+measurements and their cause or uncertainty assessment.
+
 ## Release checklist
 
 - [x] Confirm crates.io metadata and README links resolve.
@@ -281,6 +287,7 @@ raw result directories with the report.
 - [ ] Pass Linux, macOS, and Windows CI, then tag `v0.2.4`.
 - [ ] Freeze the v0.3.0 profile/assertion/report schemas.
 - [ ] Implement and validate the v0.3.0 vertical slice.
+- [ ] Confirm every v0.3.0 metric-affecting change has an indexed archive entry.
 
 ## Automated release workflow
 
