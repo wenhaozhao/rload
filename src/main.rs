@@ -79,10 +79,11 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                         .ok_or_else(|| "--profile requires a file path".to_owned())?,
                 )
             }
-            "--assert" => assertions.push(
+            "--assert" => assertions.push((
                 args.next()
                     .ok_or_else(|| "--assert requires an expression".to_owned())?,
-            ),
+                None,
+            )),
             "-s" | "--script" => {
                 return Err("Lua scripting is not supported\n\nUse an access log or JSONL request file for dynamic request sequences.".into());
             }
@@ -334,7 +335,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
             profile
                 .assertions
                 .into_iter()
-                .map(|assertion| assertion.expression),
+                .map(|assertion| (assertion.expression, assertion.message)),
         );
         if url.is_none() {
             url = Some(profile.target.url);
@@ -606,8 +607,11 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
         (Some(_), Some(_)) => unreachable!("replay inputs are mutually exclusive"),
     }
     .map_err(|error| error.to_string())?;
-    for expression in assertions {
-        rload::assertions::evaluate(&summary, &expression)?;
+    for (expression, message) in assertions {
+        rload::assertions::evaluate(&summary, &expression).map_err(|error| match message {
+            Some(message) => format!("{message}: {error}"),
+            None => error,
+        })?;
     }
     if let Some(path) = output_html {
         let result = json_result(&summary, &replay_options, whitelist_was_set);
