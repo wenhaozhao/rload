@@ -804,7 +804,11 @@ fn run_worker(
                     schedule_pacing(&mut pacing, token, connection);
                     continue;
                 }
-                connection.retry_address(error, poll.registry(), token)?;
+                if !connection.retry_address(error, poll.registry(), token)? {
+                    summary.abandoned_requests += connection.unfinished_requests();
+                    active -= 1;
+                    continue;
+                }
                 schedule_deadline(&mut deadlines, token, connection, timeout);
                 schedule_pacing(&mut pacing, token, connection);
                 continue;
@@ -820,7 +824,11 @@ fn run_worker(
                         schedule_pacing(&mut pacing, token, connection);
                         continue;
                     }
-                    connection.retry_address(error, poll.registry(), token)?;
+                    if !connection.retry_address(error, poll.registry(), token)? {
+                        summary.abandoned_requests += connection.unfinished_requests();
+                        active -= 1;
+                        continue;
+                    }
                     schedule_deadline(&mut deadlines, token, connection, timeout);
                     schedule_pacing(&mut pacing, token, connection);
                     continue;
@@ -831,7 +839,11 @@ fn run_worker(
                         && let RunError::Io(error) = error
                     {
                         summary.socket_errors.connect += 1;
-                        connection.retry_address(error, poll.registry(), token)?;
+                        if !connection.retry_address(error, poll.registry(), token)? {
+                            summary.abandoned_requests += connection.unfinished_requests();
+                            active -= 1;
+                            continue;
+                        }
                         schedule_deadline(&mut deadlines, token, connection, timeout);
                         schedule_pacing(&mut pacing, token, connection);
                         continue;
@@ -873,7 +885,11 @@ fn run_worker(
                             schedule_pacing(&mut pacing, token, connection);
                             continue;
                         }
-                        connection.retry_address(error, poll.registry(), token)?;
+                        if !connection.retry_address(error, poll.registry(), token)? {
+                            summary.abandoned_requests += connection.unfinished_requests();
+                            active -= 1;
+                            continue;
+                        }
                         schedule_deadline(&mut deadlines, token, connection, timeout);
                         schedule_pacing(&mut pacing, token, connection);
                         continue;
@@ -948,14 +964,9 @@ fn run_worker(
                     summary.socket_errors.connect += 1;
                     let timeout_error =
                         std::io::Error::new(std::io::ErrorKind::TimedOut, "connection timed out");
-                    if let Err(error) =
-                        connection.retry_address(timeout_error, poll.registry(), Token(token))
-                    {
-                        if connection.stop_after_duration_error(poll.registry())? {
-                            active -= 1;
-                        } else {
-                            return Err(error);
-                        }
+                    if !connection.retry_address(timeout_error, poll.registry(), Token(token))? {
+                        summary.abandoned_requests += connection.unfinished_requests();
+                        active -= 1;
                     } else {
                         schedule_deadline(&mut deadlines, Token(token), connection, timeout);
                         schedule_pacing(&mut pacing, Token(token), connection);

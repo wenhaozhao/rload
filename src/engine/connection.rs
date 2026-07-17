@@ -291,10 +291,10 @@ impl Connection {
 
     pub(super) fn retry_address(
         &mut self,
-        original_error: std::io::Error,
+        _original_error: std::io::Error,
         registry: &Registry,
         token: Token,
-    ) -> Result<(), RunError> {
+    ) -> Result<bool, RunError> {
         registry.deregister(self.stream.socket_mut())?;
         let next = self.address_index + 1;
         let next = if next < self.addresses.len() {
@@ -302,7 +302,8 @@ impl Connection {
         } else if self.limit.deadline().is_some() {
             0
         } else {
-            return Err(RunError::Io(original_error));
+            self.done = true;
+            return Ok(false);
         };
         let (stream, address_index) = connect_from(&self.addresses, next)?;
         self.stream = Transport::new(stream, self.tls.as_ref())?;
@@ -316,7 +317,14 @@ impl Connection {
             token,
             Interest::READABLE | Interest::WRITABLE,
         )?;
-        Ok(())
+        Ok(true)
+    }
+
+    pub(super) fn unfinished_requests(&self) -> u64 {
+        match self.limit {
+            ConnectionLimit::Requests(requests) => requests.saturating_sub(self.completed),
+            ConnectionLimit::Deadline(_) => 0,
+        }
     }
 
     pub(super) fn recover_request(

@@ -947,6 +947,25 @@ fn duration_run_reports_persistent_connection_refusals_without_failing() {
 }
 
 #[test]
+fn fixed_request_run_abandons_requests_after_connection_refusal() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    drop(listener);
+    let summary = run(RunConfig {
+        url: format!("http://{address}/"),
+        method: Method::Get,
+        limit: RunLimit::Requests(2),
+        connections: 1,
+        threads: 1,
+        timeout: Duration::from_millis(10),
+    })
+    .unwrap();
+    assert_eq!(summary.completed, 0);
+    assert_eq!(summary.abandoned_requests, 2);
+    assert_eq!(summary.socket_errors.connect, 1);
+}
+
+#[test]
 fn duration_run_resumes_after_server_restart() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
