@@ -22,7 +22,10 @@ fn cli_prints_version_without_requiring_a_target() {
         .unwrap();
 
     assert!(output.status.success());
-    assert_eq!(String::from_utf8(output.stdout).unwrap(), "rload 0.2.4\n");
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap(),
+        "rload 0.3.0-rc.1\n"
+    );
     assert!(output.stderr.is_empty());
 
     for arguments in [["--version", "--unknown"], ["--unknown", "--version"]] {

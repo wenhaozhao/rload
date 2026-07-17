@@ -1,5 +1,7 @@
 # rload 0.3.0 development validation — 2026-07-17
 
+Validated package version: `0.3.0-rc.1`.
+
 ## Local release gate
 
 The required local release gate completed successfully on macOS arm64:
@@ -63,6 +65,7 @@ gate.
 
 ## Result and remaining gates
 
-PASS for the local release, three-way benchmark, and replay RSS gates. This is
-not release sign-off: v0.3.0 still requires the cross-platform CI matrix, final
-version and documentation alignment, and release-candidate preparation.
+PASS for the local release, package, three-way benchmark, and replay RSS gates.
+The local `v0.3.0-rc.1` candidate is prepared. This is not release sign-off:
+the RC still requires the cross-platform CI matrix before tagging or
+distribution.

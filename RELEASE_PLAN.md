@@ -3,7 +3,8 @@
 ## Current status
 
 - `rload` 0.2.4 is the current release line; the main branch contains the
-  v0.2.4 promotion materials and the next planned release is v0.3.0.
+  v0.2.4 promotion materials. The development branch is preparing
+  `v0.3.0-rc.1`; it is not a stable release until cross-platform CI passes.
 - The package includes the standard license files and third-party notice.
 - The package metadata points to the public repository, homepage, and docs.rs.
 - `./scripts/release-check.sh` is the required local gate.
@@ -287,7 +288,9 @@ measurements and their cause or uncertainty assessment.
 - [ ] Pass Linux, macOS, and Windows CI, then tag `v0.2.4`.
 - [ ] Freeze the v0.3.0 profile/assertion/report schemas.
 - [ ] Implement and validate the v0.3.0 vertical slice.
-- [ ] Confirm every v0.3.0 metric-affecting change has an indexed archive entry.
+- [x] Confirm every current v0.3.0 metric-affecting change has an indexed archive entry.
+- [x] Prepare and pass the local `v0.3.0-rc.1` package gate.
+- [ ] Pass Linux, macOS, and Windows CI for `v0.3.0-rc.1`.
 
 ## Automated release workflow
 

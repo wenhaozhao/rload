@@ -4,15 +4,41 @@ All notable changes to rload are documented here.
 
 ## [Unreleased]
 
-### Planned for 0.3.0
+## [0.3.0-rc.1] - 2026-07-17
+
+### Added
 
 - Add minimum, maximum, average, and median latency statistics to aggregate and
   per-method reports while preserving the existing P50 JSON field.
-- Record runtime failures and continue valid load runs, with categorized
-  recovery and bounded retry behavior for fixed-request workloads.
 - Include P95 latency in text, JSON, and HTML reports.
 - Add YAML workload profiles, final-summary assertions, and self-contained HTML
   reports for CI-oriented benchmarks.
+- Add `abandoned_requests` and `recovery_attempts` summary metrics to text,
+  beauty, JSON, HTML, and assertion evaluation.
+
+### Changed
+
+- Runtime transport failures are isolated from valid load runs. Fixed-request
+  workloads use a three-attempt per-request recovery budget and return a
+  partial-completion summary when the budget is exhausted.
+- Profile v1 rejects unknown fields and preserves custom assertion diagnostics.
+
+### Fixed
+
+- TLS certificate failures remain terminal while TLS-handshake I/O failures
+  can advance to the next resolved address.
+- Fixed-request connection, read, write, and timeout failures no longer retry
+  indefinitely or abort the entire valid workload.
+
+### Performance
+
+- Access-log replay stores request payload metadata only when present, keeping
+  measured RSS scaling within the 256 B/entry release gate.
+
+### Compatibility
+
+- Existing v0.2.4 CLI behavior, default text parser anchors, JSON schema v1,
+  replay ordering, and published stable website references remain intact.
 
 ## [0.2.4] - 2026-07-15
 
