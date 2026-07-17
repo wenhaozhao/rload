@@ -48,7 +48,7 @@ fn cli_prints_version_without_requiring_a_target() {
         ])
         .output()
         .unwrap();
-    assert!(!output.status.success());
+    assert!(output.status.success());
     assert!(
         !String::from_utf8(output.stdout)
             .unwrap()
