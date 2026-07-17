@@ -189,6 +189,41 @@ fn cli_rejects_unknown_profile_fields_before_running() {
 }
 
 #[test]
+fn cli_includes_profile_assertion_message_on_failure() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = Vec::new();
+        while !request.ends_with(b"\r\n\r\n") {
+            let mut byte = [0];
+            stream.read_exact(&mut byte).unwrap();
+            request.push(byte[0]);
+        }
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+            .unwrap();
+    });
+    let path = env::temp_dir().join(format!(
+        "rload-assertion-message-{}.yaml",
+        std::process::id()
+    ));
+    fs::write(&path, format!("version: v1\ntarget:\n  url: http://{address}/\nassertions:\n  - expression: completed == 0\n    message: request budget was not met\n")).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args(["--profile", path.to_str().unwrap(), "--requests", "1"])
+        .output()
+        .unwrap();
+    fs::remove_file(path).unwrap();
+    server.join().unwrap();
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8(output.stderr)
+            .unwrap()
+            .contains("request budget was not met")
+    );
+}
+
+#[test]
 fn cli_loads_an_access_log_replay_profile() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
