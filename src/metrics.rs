@@ -310,6 +310,7 @@ mod tests {
 pub struct RunSummary {
     pub completed: u64,
     pub abandoned_requests: u64,
+    pub recovery_attempts: u64,
     pub read_bytes: u64,
     pub response_body_bytes: u64,
     pub status_errors: u64,
@@ -336,6 +337,7 @@ impl Default for RunSummary {
         Self {
             completed: 0,
             abandoned_requests: 0,
+            recovery_attempts: 0,
             read_bytes: 0,
             response_body_bytes: 0,
             status_errors: 0,
@@ -363,6 +365,7 @@ impl RunSummary {
     pub(crate) fn merge(&mut self, other: Self) {
         self.completed += other.completed;
         self.abandoned_requests += other.abandoned_requests;
+        self.recovery_attempts += other.recovery_attempts;
         self.read_bytes += other.read_bytes;
         self.response_body_bytes += other.response_body_bytes;
         self.status_errors += other.status_errors;

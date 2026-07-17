@@ -4,6 +4,7 @@ rload result
 Summary
 Requests completed <value>
 Requests abandoned <value>
+Recovery attempts <value>
 Bytes read <value>
 Response body bytes <value>
 Load window <value>

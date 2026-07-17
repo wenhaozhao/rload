@@ -778,7 +778,9 @@ fn run_worker(
             {
                 if connection.has_started() {
                     let read_error = connection.request_is_written();
-                    if connection.recover_request(poll.registry(), token)? {
+                    let recovered = connection.recover_request(poll.registry(), token)?;
+                    summary.recovery_attempts += connection.take_recovery_attempts();
+                    if recovered {
                         if read_error {
                             summary.socket_errors.read += 1;
                         } else {
@@ -871,7 +873,9 @@ fn run_worker(
                         schedule_pacing(&mut pacing, token, connection);
                         continue;
                     }
-                    if connection.recover_request(poll.registry(), token)? {
+                    let recovered = connection.recover_request(poll.registry(), token)?;
+                    summary.recovery_attempts += connection.take_recovery_attempts();
+                    if recovered {
                         summary.socket_errors.write += 1;
                         schedule_deadline(&mut deadlines, token, connection, timeout);
                         schedule_pacing(&mut pacing, token, connection);
@@ -929,7 +933,9 @@ fn run_worker(
                         continue;
                     }
                     Err(RunError::Io(error)) => {
-                        if connection.recover_request(poll.registry(), token)? {
+                        let recovered = connection.recover_request(poll.registry(), token)?;
+                        summary.recovery_attempts += connection.take_recovery_attempts();
+                        if recovered {
                             summary.socket_errors.read += 1;
                             schedule_deadline(&mut deadlines, token, connection, timeout);
                             schedule_pacing(&mut pacing, token, connection);
@@ -988,7 +994,9 @@ fn run_worker(
                 Expiration::Stopped => active -= 1,
                 Expiration::RequestTimeout => {
                     summary.socket_errors.timeout += 1;
-                    if connection.recover_request(poll.registry(), Token(token))? {
+                    let recovered = connection.recover_request(poll.registry(), Token(token))?;
+                    summary.recovery_attempts += connection.take_recovery_attempts();
+                    if recovered {
                         schedule_deadline(&mut deadlines, Token(token), connection, timeout);
                         schedule_pacing(&mut pacing, Token(token), connection);
                     } else if connection.stop_after_duration_error(poll.registry())? {

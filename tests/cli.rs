@@ -161,6 +161,7 @@ fn cli_loads_a_static_v1_profile() {
     let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(result["summary"]["completed_requests"], 1);
     assert_eq!(result["summary"]["abandoned_requests"], 0);
+    assert_eq!(result["summary"]["recovery_attempts"], 0);
     let html = fs::read_to_string(&report).unwrap();
     fs::remove_file(report).unwrap();
     assert!(html.contains("<title>rload report</title>"));

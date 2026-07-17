@@ -37,6 +37,7 @@ pub(super) struct Connection {
     done: bool,
     timer_generation: u64,
     pending_read_bytes: u64,
+    pending_recovery_attempts: u64,
     recovery_attempts: u8,
     tls: Option<TlsParameters>,
 }
@@ -83,6 +84,7 @@ impl Connection {
             done: false,
             timer_generation: 0,
             pending_read_bytes: 0,
+            pending_recovery_attempts: 0,
             recovery_attempts: 0,
             tls,
         })
@@ -218,6 +220,10 @@ impl Connection {
 
     pub(super) fn take_read_bytes(&mut self) -> u64 {
         std::mem::take(&mut self.pending_read_bytes)
+    }
+
+    pub(super) fn take_recovery_attempts(&mut self) -> u64 {
+        std::mem::take(&mut self.pending_recovery_attempts)
     }
 
     fn completed_response(&self, parsed: ParsedResponse, eof: bool) -> CompletedResponse {
@@ -356,6 +362,7 @@ impl Connection {
         registry.deregister(self.stream.socket_mut())?;
         let fixed_limit = self.limit.deadline().is_none();
         let (stream, address_index) = loop {
+            self.pending_recovery_attempts += 1;
             if fixed_limit {
                 self.recovery_attempts += 1;
             }

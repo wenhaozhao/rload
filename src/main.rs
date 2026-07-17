@@ -629,6 +629,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     }
     println!("{} requests completed", summary.completed);
     println!("{} requests abandoned", summary.abandoned_requests);
+    println!("{} recovery attempts", summary.recovery_attempts);
     println!("{} B read", summary.read_bytes);
     println!("{} response body B read", summary.response_body_bytes);
     print_optional_duration("Average latency", summary.latencies.average());
@@ -825,6 +826,7 @@ fn json_result(
         "summary": {
             "completed_requests": summary.completed,
             "abandoned_requests": summary.abandoned_requests,
+            "recovery_attempts": summary.recovery_attempts,
             "read_bytes": summary.read_bytes,
             "response_body_bytes": summary.response_body_bytes,
             "runtime_us": duration_us(summary.runtime),
@@ -895,6 +897,7 @@ fn print_beauty(
     println!("Summary");
     println!("  Requests completed   {:>12}", summary.completed);
     println!("  Requests abandoned   {:>12}", summary.abandoned_requests);
+    println!("  Recovery attempts    {:>12}", summary.recovery_attempts);
     println!("  Bytes read           {:>12}", summary.read_bytes);
     println!("  Response body bytes  {:>12}", summary.response_body_bytes);
     println!("  Load window          {:>12.2?}", summary.load_runtime);

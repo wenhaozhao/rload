@@ -794,6 +794,7 @@ fn run_times_out_unresponsive_request_near_configured_deadline() {
 
     assert_eq!(summary.completed, 0);
     assert_eq!(summary.abandoned_requests, 1);
+    assert_eq!(summary.recovery_attempts, 3);
     assert_eq!(summary.socket_errors.timeout, 4);
     assert!(started.elapsed() >= Duration::from_millis(20));
     assert!(started.elapsed() < Duration::from_millis(150));
@@ -989,6 +990,7 @@ fn fixed_request_run_abandons_request_after_recovery_budget_is_exhausted() {
 
     assert_eq!(summary.completed, 0);
     assert_eq!(summary.abandoned_requests, 1);
+    assert_eq!(summary.recovery_attempts, 3);
     assert_eq!(summary.socket_errors.read, 4);
     server.join().unwrap();
 }
