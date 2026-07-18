@@ -287,10 +287,10 @@ measurements and their cause or uncertainty assessment.
 - [x] Complete the local v0.2.4 release gate and package verification.
 - [ ] Pass Linux, macOS, and Windows CI, then tag `v0.2.4`.
 - [x] Freeze the v0.3.0 profile/assertion/report schemas.
-- [ ] Implement and validate the v0.3.0 vertical slice.
+- [x] Implement and validate the v0.3.0 vertical slice.
 - [x] Confirm every current v0.3.0 metric-affecting change has an indexed archive entry.
 - [x] Prepare and pass the local `v0.3.0-rc.1` package gate.
-- [ ] Pass Linux, macOS, and Windows CI for `v0.3.0-rc.1`.
+- [x] Pass Linux, macOS, and Windows CI for `v0.3.0-rc.1`.
 
 ## Automated release workflow
 

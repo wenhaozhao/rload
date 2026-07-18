@@ -65,7 +65,11 @@ gate.
 
 ## Result and remaining gates
 
-PASS for the local release, package, three-way benchmark, and replay RSS gates.
-The local `v0.3.0-rc.1` candidate is prepared. This is not release sign-off:
-the RC still requires the cross-platform CI matrix before tagging or
-distribution.
+PASS for the local release, package, three-way benchmark, replay RSS, and
+cross-platform CI gates. GitHub Actions run `29594622880` passed on Linux,
+macOS, and Windows; Windows also passed the path, socket-recovery, and
+PowerShell release-binary checks.
+
+The `v0.3.0-rc.1` candidate is ready to tag or distribute when release
+authorization is granted. The independent-server accuracy matrix remains a
+post-release follow-up.
