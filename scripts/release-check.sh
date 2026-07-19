@@ -13,6 +13,7 @@ cargo package --allow-dirty
 test -f LICENSE-MIT
 test -f LICENSE-APACHE
 test -f THIRD_PARTY_NOTICES.md
+test -f docs/RELEASE_DOCUMENTATION_INDEX.md
 package_files=$(cargo package --allow-dirty --list)
 grep -qx 'LICENSE-MIT' <<<"$package_files"
 grep -qx 'LICENSE-APACHE' <<<"$package_files"
@@ -20,3 +21,4 @@ grep -qx 'THIRD_PARTY_NOTICES.md' <<<"$package_files"
 
 printf 'Local release checks passed.\n'
 printf 'Manual gate: review third-party notices and target-platform validation before distribution.\n'
+printf 'Manual gate: complete docs/RELEASE_DOCUMENTATION_INDEX.md after publication.\n'

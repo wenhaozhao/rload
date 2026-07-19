@@ -8,6 +8,8 @@
 - The package includes the standard license files and third-party notice.
 - The package metadata points to the public repository, homepage, and docs.rs.
 - `./scripts/release-check.sh` is the required local gate.
+- `docs/RELEASE_DOCUMENTATION_INDEX.md` is the required post-release
+  documentation and communications handoff.
 - The 0.2.0 development branch adds CI gates for macOS, Linux, and Windows.
 
 ## Post-0.1.1 priorities
@@ -276,6 +278,8 @@ measurements and their cause or uncertainty assessment.
 
 - [x] Confirm crates.io metadata and README links resolve.
 - [x] Run `./scripts/release-check.sh` on the release commit.
+- [ ] Complete `docs/RELEASE_DOCUMENTATION_INDEX.md` after every published
+      release and validate its follow-up commit in CI.
 - [x] Run the local wrk accuracy and access-log replay matrices and archive
       results.
 - [ ] Run the deferred independent-server accuracy matrix (post-release task).
