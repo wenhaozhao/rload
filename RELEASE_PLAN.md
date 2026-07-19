@@ -281,6 +281,8 @@ measurements and their cause or uncertainty assessment.
 - [x] Run `./scripts/release-check.sh` on the release commit.
 - [x] Complete `docs/RELEASE_DOCUMENTATION_INDEX.md` after every published
       release and validate its follow-up commit in CI.
+- [ ] Complete `docs/POST_RELEASE_PROMOTION.md` when the release has an
+      authorized external communications plan, and retain its promotion record.
 - [x] Run the local wrk accuracy and access-log replay matrices and archive
       results.
 - [ ] Run the deferred independent-server accuracy matrix (post-release task).

@@ -33,6 +33,7 @@ and prerelease status must match the intended product status.
 | `website/index.html` | Release label, artifact-name examples, feature highlights, and stable/prerelease wording. | Limited release-label replacement | Required |
 | `website/index.zh-cn.html` | Chinese equivalent of the website updates. | Limited release-label replacement | Required |
 | `MARKETING.md` | GitHub Release copy, release sequence, and campaign messages. | None | Required when release communications are used |
+| `docs/POST_RELEASE_PROMOTION.md` | Authorized channel selection, message rules, and a per-release outreach record. | None | Required when release communications are used |
 | `benchmarks/VALIDATION_<date>_<version>.md` | Final tag, CI/release-workflow outcome, and links or paths to release evidence. | None | Required |
 
 ## Workflow-managed material
@@ -48,6 +49,9 @@ and prerelease status must match the intended product status.
 Those operations do not replace the owner review in the table above. In
 particular, the workflow does not verify feature descriptions, benchmark
 claims, release positioning, or static archive examples.
+
+When release communications are planned, complete
+`docs/POST_RELEASE_PROMOTION.md` after this documentation handoff.
 
 ## Documents that remain historical
 

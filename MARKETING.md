@@ -39,3 +39,7 @@ Most load tests reduce production traffic to one URL. rload keeps wrk-compatible
 2. 发布中文文章：`用 YAML profile 和 Nginx access log 验证真实流量`。
 3. 发布英文文章：`Reproducible load validation with YAML profiles and CI assertions`。
 4. 在 Rust、SRE、性能工程社区用可复现实验参与讨论，并明确该版本为 RC 发布。
+
+渠道选择、消息规则和每次发布的留档要求见
+[`docs/POST_RELEASE_PROMOTION.md`](docs/POST_RELEASE_PROMOTION.md)。仅在获得
+渠道授权并能持续回应反馈时进行外部发布。
