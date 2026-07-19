@@ -2,10 +2,11 @@
 
 ## Current status
 
-- `rload` `v0.3.0-rc.1` was published on 2026-07-19 after the local release,
-  benchmark, and Linux/macOS/Windows CI gates passed. The crate, GitHub
-  Release, precompiled binaries, Homebrew tap, and website publication steps
-  completed successfully.
+- The `v0.3.0` stable-release commit is ready to tag after the local release,
+  benchmark, and Linux/macOS/Windows CI gates passed for `v0.3.0-rc.1`. The
+  final tag must complete the crate, GitHub Release, precompiled-binary,
+  Homebrew-tap, and website-publication steps before this status is marked
+  released.
 - The package includes the standard license files and third-party notice.
 - The package metadata points to the public repository, homepage, and docs.rs.
 - `./scripts/release-check.sh` is the required local gate.
@@ -299,6 +300,8 @@ measurements and their cause or uncertainty assessment.
 - [x] Prepare and pass the local `v0.3.0-rc.1` package gate.
 - [x] Pass Linux, macOS, and Windows CI for `v0.3.0-rc.1`.
 - [x] Publish `v0.3.0-rc.1` and attach the cross-platform release artifacts.
+- [ ] Tag and publish the stable `v0.3.0` release, then archive its release
+      documentation and promotion record.
 
 ## Automated release workflow
 

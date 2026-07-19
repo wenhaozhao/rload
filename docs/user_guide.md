@@ -60,7 +60,7 @@ cargo install rload
 ### Option C: Manual Binary Installation
 Download the precompiled binary for your platform from the [GitHub Releases](https://github.com/wenhaozhao/rload/releases) page, extract it, and move it to your executable path:
 ```bash
-tar -xvf rload-v0.3.0-rc.1-x86_64-unknown-linux-gnu.tar.gz
+tar -xvf rload-v0.3.0-x86_64-unknown-linux-gnu.tar.gz
 sudo mv rload /usr/local/bin/
 ```
 

@@ -62,7 +62,7 @@ are documented in [`benchmarks/VALIDATION_2026-07-11.md`](benchmarks/VALIDATION_
 and [`benchmarks/ACCURACY.md`](benchmarks/ACCURACY.md). The zero-delay P99
 result is intentionally called out rather than rounded into a pass.
 
-The published `v0.3.0-rc.1` validation used five alternating paired runs with
+The published `v0.3.0` validation used five alternating paired runs with
 1 ms deterministic delay plus jitter: RPS MAE versus wrk was 0.497%, P90 MAE
 was 1.525%, P99 median absolute error was 3.476%, and replay RSS scaling was
 242.1 B per entry. See
@@ -70,7 +70,7 @@ was 1.525%, P99 median absolute error was 3.476%, and replay RSS scaling was
 
 ### Functional coverage
 
-| Capability | wrk 4.2.0 | rload 0.3.0-rc.1 |
+| Capability | wrk 4.2.0 | rload 0.3.0 |
 |---|---|---|
 | HTTP/1.1 static request load | Yes | Yes |
 | HTTP and HTTPS with connection reuse | Yes | Yes, including TLS verification and SNI |
@@ -97,7 +97,7 @@ CLI or duplicate load-generation logic.
 
 ## Build and install
 
-`v0.3.0-rc.1` is validated with stable Rust 1.96.1 on macOS arm64, Linux, and
+`v0.3.0` is validated with stable Rust 1.96.1 on macOS arm64, Linux, and
 Windows. Windows CI additionally covers PowerShell invocation, path handling,
 and socket recovery.
 

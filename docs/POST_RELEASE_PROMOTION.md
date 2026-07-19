@@ -48,6 +48,11 @@ discussion space, Rust user forums, SRE/performance communities, and approved
 Chinese developer communities. Select channels for audience fit and moderation
 capacity rather than posting everywhere.
 
+For the concrete QQ Rust Chinese community, Zhihu, and Xiaohongshu task
+breakdown, use [`CHANNEL_PROMOTION_PLAN.zh-CN.md`](CHANNEL_PROMOTION_PLAN.zh-CN.md).
+That plan does not authorize external posting; channel-owner approval and
+moderation capacity remain prerequisites.
+
 ## Message rules
 
 - Lead with the user problem, not a feature inventory.
