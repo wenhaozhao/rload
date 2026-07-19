@@ -60,7 +60,7 @@ cargo install rload
 ### 方式 C：手动下载静态二进制文件
 直接在 [GitHub Releases](https://github.com/wenhaozhao/rload/releases) 页面下载对应系统的压缩包，解压并将其移动到系统的可执行路径（`PATH`）中：
 ```bash
-tar -xvf rload-v0.2.2-x86_64-unknown-linux-musl.tar.gz
+tar -xvf rload-v0.3.0-rc.1-x86_64-unknown-linux-musl.tar.gz
 sudo mv rload /usr/local/bin/
 ```
 
