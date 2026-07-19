@@ -30,12 +30,12 @@
       <div class="hero-content">
         <p class="eyebrow"><i></i> RUST-NATIVE HTTP TRAFFIC REPLAY</p>
         <h1>回放真实流量。<br><em>找到系统极限。</em></h1>
-        <p class="lead">rload 是一个兼容 wrk 核心语义的 Rust 压测引擎。用 3.5MB 内存，高保真流式回放百万级 Nginx 日志与结构化 JSONL，精确揭示高并发下的系统瓶颈。</p>
+        <p class="lead">rload 是一个兼容 wrk 核心语义的 Rust 压测引擎。版本化 YAML 工作负载、类型化 CI 断言和确定性的离线报告，与 Nginx 和 JSONL 回放共同提供可复现的负载验证。</p>
         <div class="actions">
           <a class="button primary" href="#install">立即安装 ↓</a>
           <a class="button" href="https://github.com/wenhaozhao/rload" target="_blank" rel="noopener noreferrer">GitHub 源码 ↗</a>
         </div>
-        <p class="meta">最新稳定版 v0.3.0-rc.1　·　MIT / Apache-2.0 双协议　·　Rust 1.96+ / 单一原生二进制</p>
+        <p class="meta">最新发布版 v0.3.0-rc.1　·　MIT / Apache-2.0 双协议　·　Rust 1.96+ / 单一原生二进制</p>
       </div>
 
       <!-- 仿真终端效果 -->
@@ -192,7 +192,7 @@
         <pre class="install-code" id="code-cargo"><code><span># 使用 Rust 工具链一键编译安装</span><br>cargo install rload<br><br><span># 确保 ~/.cargo/bin 已经在你的 PATH 中</span><br>rload --help</code></pre>
         
         <!-- Static Binary Tab Code -->
-        <pre class="install-code" id="code-binary"><code><span># 针对无编译环境的服务器/CI 容器</span><br><span># 1. 访问 GitHub Releases 页面一键下载对应平台的压缩包</span><br><span># 2. 解压并将二进制文件移入 PATH，例如：</span><br>tar -xvf rload-v0.2.2-x86_64-unknown-linux-musl.tar.gz<br>sudo mv rload /usr/local/bin/<br><br><span># 3. 验证运行</span><br>rload --help</code></pre>
+        <pre class="install-code" id="code-binary"><code><span># 针对无编译环境的服务器/CI 容器</span><br><span># 1. 访问 GitHub Releases 页面一键下载对应平台的压缩包</span><br><span># 2. 解压并将二进制文件移入 PATH，例如：</span><br>tar -xvf rload-v0.3.0-rc.1-x86_64-unknown-linux-gnu.tar.gz<br>sudo mv rload /usr/local/bin/<br><br><span># 3. 验证运行</span><br>rload --help</code></pre>
       </div>
     </section>
 

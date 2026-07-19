@@ -2,9 +2,10 @@
 
 ## Current status
 
-- `rload` 0.2.4 is the current release line; the main branch contains the
-  v0.2.4 promotion materials. The development branch is preparing
-  `v0.3.0-rc.1`; it is not a stable release until cross-platform CI passes.
+- `rload` `v0.3.0-rc.1` was published on 2026-07-19 after the local release,
+  benchmark, and Linux/macOS/Windows CI gates passed. The crate, GitHub
+  Release, precompiled binaries, Homebrew tap, and website publication steps
+  completed successfully.
 - The package includes the standard license files and third-party notice.
 - The package metadata points to the public repository, homepage, and docs.rs.
 - `./scripts/release-check.sh` is the required local gate.
@@ -278,7 +279,7 @@ measurements and their cause or uncertainty assessment.
 
 - [x] Confirm crates.io metadata and README links resolve.
 - [x] Run `./scripts/release-check.sh` on the release commit.
-- [ ] Complete `docs/RELEASE_DOCUMENTATION_INDEX.md` after every published
+- [x] Complete `docs/RELEASE_DOCUMENTATION_INDEX.md` after every published
       release and validate its follow-up commit in CI.
 - [x] Run the local wrk accuracy and access-log replay matrices and archive
       results.
@@ -295,14 +296,17 @@ measurements and their cause or uncertainty assessment.
 - [x] Confirm every current v0.3.0 metric-affecting change has an indexed archive entry.
 - [x] Prepare and pass the local `v0.3.0-rc.1` package gate.
 - [x] Pass Linux, macOS, and Windows CI for `v0.3.0-rc.1`.
+- [x] Publish `v0.3.0-rc.1` and attach the cross-platform release artifacts.
 
 ## Automated release workflow
 
-Push a tag in the form `vMAJOR.MINOR.PATCH` (for example `v0.2.0`) to run
+Push a tag in the form `vMAJOR.MINOR.PATCH` (or a SemVer prerelease tag such as
+`v0.3.0-rc.1`) to run
 `.github/workflows/release.yml`. The workflow validates that the tag matches
 `Cargo.toml`, runs the release gate, publishes the crate, creates a GitHub
 Release, updates `wenhaozhao/homebrew-rload`, and commits the new version to
-the GitHub Pages homepage.
+the GitHub Pages homepage. After it succeeds, complete the content review in
+`docs/RELEASE_DOCUMENTATION_INDEX.md` and validate that follow-up in CI.
 
 Required Actions secrets:
 

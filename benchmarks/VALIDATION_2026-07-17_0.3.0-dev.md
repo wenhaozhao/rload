@@ -70,6 +70,8 @@ cross-platform CI gates. GitHub Actions run `29594622880` passed on Linux,
 macOS, and Windows; Windows also passed the path, socket-recovery, and
 PowerShell release-binary checks.
 
-The `v0.3.0-rc.1` candidate is ready to tag or distribute when release
-authorization is granted. The independent-server accuracy matrix remains a
-post-release follow-up.
+`v0.3.0-rc.1` was published on 2026-07-19. Release workflow `29672618267`
+published the crate, created the GitHub Release, uploaded Linux, macOS, and
+Windows artifacts, updated the Homebrew tap, and deployed the website and
+versioned user-guide references. The independent-server accuracy matrix remains
+a post-release follow-up.

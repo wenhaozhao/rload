@@ -60,7 +60,7 @@ cargo install rload
 ### Option C: Manual Binary Installation
 Download the precompiled binary for your platform from the [GitHub Releases](https://github.com/wenhaozhao/rload/releases) page, extract it, and move it to your executable path:
 ```bash
-tar -xvf rload-v0.3.0-rc.1-x86_64-unknown-linux-musl.tar.gz
+tar -xvf rload-v0.3.0-rc.1-x86_64-unknown-linux-gnu.tar.gz
 sudo mv rload /usr/local/bin/
 ```
 
@@ -322,6 +322,7 @@ rload -c 100 --stages 10s:100,30s:1000,10s:100 https://target.com
 1. **`text` (Default)**: A clean, standard command-line interface mimicking `wrk`.
 2. **`--output-beauty`**: Sectioned, highly readable, colored output designed for terminal human inspection.
 3. **`--output-format json`**: A standardized, machine-readable JSON document designed for CI pipelines, automation runners, or dashboard feeding.
+4. **`--output-html <PATH>`**: A deterministic, self-contained offline report generated from the final summary.
 
 ### Example CLI Output
 ```

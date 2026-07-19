@@ -4,7 +4,7 @@ All notable changes to rload are documented here.
 
 ## [Unreleased]
 
-## [0.3.0-rc.1] - 2026-07-17
+## [0.3.0-rc.1] - 2026-07-19
 
 ### Added
 
@@ -38,7 +38,7 @@ All notable changes to rload are documented here.
 ### Compatibility
 
 - Existing v0.2.4 CLI behavior, default text parser anchors, JSON schema v1,
-  replay ordering, and published stable website references remain intact.
+  and replay ordering remain intact.
 
 ## [0.2.4] - 2026-07-15
 

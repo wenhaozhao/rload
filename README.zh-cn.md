@@ -19,9 +19,11 @@
 - 精确的单方法延迟/错误摘要和 HTTP 状态码计数；
 - 有界限的 URI 前 20 位重度访问（heavy-hitter）估算，并附带明确的最大误差；
 - 具有请求数或持续时间限制的持久连接；
-- 在持续时间受限的运行期间进行套接字错误统计和连接恢复；
+- 在持续时间受限的运行期间进行套接字错误统计和连接恢复，并为请求数受限的运行提供有界、可观测的恢复；
 - `Content-Length`、分块（chunked）和连接关闭（connection-close）响应分帧；
-- 输出已完成的请求数、套接字读取字节数、响应体字节数、状态错误和平均延迟。
+- 支持 YAML 工作负载 profile、CLI 覆盖优先级以及用于 CI 的最终摘要断言；
+- 支持确定性的独立 HTML 报告，以及聚合/按方法的 P95、最小、最大、平均和中位数延迟；
+- 输出已完成和已放弃请求数、恢复次数、套接字读取字节数、响应体字节数与状态错误。
 
 Lua 和 LuaJIT 兼容性被明确声明为不在此项目范围内。
 
@@ -45,9 +47,11 @@ Lua 和 LuaJIT 兼容性被明确声明为不在此项目范围内。
 
 正式的准确性判定方法、原始结果目录以及判定门槛定义记录在 [`benchmarks/VALIDATION_2026-07-11.md`](benchmarks/VALIDATION_2026-07-11.md) 和 [`benchmarks/ACCURACY.md`](benchmarks/ACCURACY.md) 中。零延迟 P99 结果被有意指出，而非四舍五入为通过。
 
+已发布的 `v0.3.0-rc.1` 使用五次交替配对运行以及 1 ms 确定性延迟和抖动进行验证：相对 wrk 的 RPS MAE 为 0.497%，P90 MAE 为 1.525%，P99 中位数绝对误差为 3.476%，回放 RSS 增长斜率为每条目 242.1 B。详见 [`benchmarks/VALIDATION_2026-07-17_0.3.0-dev.md`](benchmarks/VALIDATION_2026-07-17_0.3.0-dev.md)。
+
 ### 功能覆盖范围
 
-| 能力 | wrk 4.2.0 | rload 0.2.4 |
+| 能力 | wrk 4.2.0 | rload 0.3.0-rc.1 |
 |---|---|---|
 | HTTP/1.1 静态请求负载 | 支持 | 支持 |
 | 具有连接复用的 HTTP 和 HTTPS | 支持 | 支持，包括 TLS 验证和 SNI |
@@ -60,6 +64,7 @@ Lua 和 LuaJIT 兼容性被明确声明为不在此项目范围内。
 | JSONL 请求回放 | 无原生模式 | 支持；方法、请求头、UTF-8 请求体以及单记录限制 |
 | 回放种子与方法/URI 白名单 | 无原生模式 | 支持；确定性种子外加交集过滤器 |
 | 回放频率/时间戳步调（pacing）/突发配置 | 仅通过自定义脚本支持 | 已实现固定全局速率、时间戳速度步调（timestamp-speed pacing）以及定时速率阶段 |
+| 版本化工作负载与 CI 断言 | 仅通过自定义脚本支持 | YAML profile v1、类型化最终摘要断言与确定性的离线 HTML 报告 |
 | 从访问日志条目自动推导目标 | 无原生模式 | 仅作为未来候选特性；目标 URL 目前需显式指定 |
 | GUI 配置界面 | 无原生模式 | 未来可选特性，分层在 rload 引擎之上 |
 
@@ -67,7 +72,7 @@ Lua 和 LuaJIT 兼容性被明确声明为不在此项目范围内。
 
 ## 构建与安装
 
-0.2.x 版本系列已在 macOS arm64、Linux 和 Windows 上使用稳定的 Rust 1.96.1 进行了验证。Windows CI 还额外覆盖了 PowerShell 调用、路径处理和套接字恢复。
+`v0.3.0-rc.1` 已在 macOS arm64、Linux 和 Windows 上使用稳定的 Rust 1.96.1 进行了验证。Windows CI 还额外覆盖了 PowerShell 调用、路径处理和套接字恢复。
 
 直接从此签出目录构建或安装：
 
@@ -94,6 +99,7 @@ cargo run --release -- --requests 1000 --access-log ./access.log \
   --replay-order shuffle --seed 42 https://staging.example.com/
 cargo run --release -- --duration 30s --request-file ./requests.jsonl \
   --replay-order shuffle --seed 42 https://staging.example.com/
+cargo run --release -- --profile ./rload.yaml --assert 'p95 < 50ms'
 ```
 
 普通请求使用类 curl 兼容子集，同时保留 wrk 的选项含义：`-X/--request`、可重复的 `-H/--header`、可重复的 `--data` 以及 `--data-binary @FILE`。短选项 `-d` 仍代表 wrk 的持续时间选项；它从不表示请求数据。多个 `--data` 值会使用 `&` 连接，而在不指定 `-X` 的情况下指定数据会选择 POST。二进制文件会以字节对字节（byte-for-byte）的方式发送。JSONL 所使用的托管请求头、URI 以及 512 KiB 请求体限制同样适用于此处。

@@ -155,7 +155,7 @@ behavior.*
      hot path must not retain dynamic JSON values, resolve schema paths, or
      parse timestamp strings.
 
-### Maintenance: v0.2.3 - Generic Rate Stages and Version Output [Ready for CI]
+### Maintenance: v0.2.3 - Generic Rate Stages and Version Output [Completed]
 
 *Focus: Reuse staged global pacing for ordinary requests while preserving the
 existing replay CLI.*
@@ -168,7 +168,7 @@ existing replay CLI.*
 
 ---
 
-### Phase 2: v0.3.0 - CI-first Test Profiles and Reports [Planned]
+### Phase 2: v0.3.0 - CI-first Test Profiles and Reports [Released as v0.3.0-rc.1]
 *Focus: Make an existing rload workload repeatable in local development and CI,
 with machine-readable pass/fail results and an offline report.*
 
@@ -248,6 +248,10 @@ truth.
 * Identical JSON input produces byte-stable HTML output usable offline.
 * No more than 3% throughput or 5% P99 regression in the fixed baseline; replay
   RSS remains within the existing documented gate.
+
+`v0.3.0-rc.1` was published on 2026-07-19 after the local package gate,
+three-way benchmark, replay RSS validation, and Linux/macOS/Windows CI all
+passed. HTTP/2, gRPC, distributed execution, and Prometheus remain deferred.
 
 #### Non-goals
 

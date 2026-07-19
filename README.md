@@ -23,10 +23,15 @@ The current vertical slice provides:
 - exact per-method latency/error summaries and HTTP status-code counts;
 - bounded URI Top-20 heavy-hitter estimates with explicit maximum error;
 - persistent connections with request-count or duration limits;
-- socket-error accounting and connection recovery during duration-limited runs;
+- socket-error accounting and recovery during duration-limited runs, with
+  bounded, observable recovery for request-limited runs;
 - `Content-Length`, chunked, and connection-close response framing;
-- completed request, socket-read byte, response-body byte, status error, and
-  average latency output.
+- YAML workload profiles with CLI-over-profile precedence and final-summary
+  assertions for CI;
+- deterministic, self-contained HTML reports and aggregate/per-method P95,
+  minimum, maximum, mean, and median latency output;
+- completed request, abandoned request, recovery attempt, socket-read byte,
+  response-body byte, and status-error output.
 
 Lua and LuaJIT compatibility are explicitly out of scope.
 
@@ -57,9 +62,15 @@ are documented in [`benchmarks/VALIDATION_2026-07-11.md`](benchmarks/VALIDATION_
 and [`benchmarks/ACCURACY.md`](benchmarks/ACCURACY.md). The zero-delay P99
 result is intentionally called out rather than rounded into a pass.
 
+The published `v0.3.0-rc.1` validation used five alternating paired runs with
+1 ms deterministic delay plus jitter: RPS MAE versus wrk was 0.497%, P90 MAE
+was 1.525%, P99 median absolute error was 3.476%, and replay RSS scaling was
+242.1 B per entry. See
+[`benchmarks/VALIDATION_2026-07-17_0.3.0-dev.md`](benchmarks/VALIDATION_2026-07-17_0.3.0-dev.md).
+
 ### Functional coverage
 
-| Capability | wrk 4.2.0 | rload 0.2.4 |
+| Capability | wrk 4.2.0 | rload 0.3.0-rc.1 |
 |---|---|---|
 | HTTP/1.1 static request load | Yes | Yes |
 | HTTP and HTTPS with connection reuse | Yes | Yes, including TLS verification and SNI |
@@ -72,6 +83,7 @@ result is intentionally called out rather than rounded into a pass.
 | JSONL request replay | No native mode | Yes; methods, headers, UTF-8 bodies, and per-record limits |
 | Replay seed and method/URI whitelists | No native mode | Yes; deterministic seed plus intersection filters |
 | Replay frequency/timestamp pacing/burst profiles | Custom scripting only | Fixed global rate, timestamp-speed pacing, and timed rate stages implemented |
+| Version-controlled workloads and CI assertions | Custom scripting only | YAML profile v1, typed final-summary assertions, and deterministic offline HTML reports |
 | Automatic target inference from access-log entries | No native mode | Future candidate only; target URL is currently explicit |
 | GUI configuration interface | No native mode | Future optional feature layered on the rload engine |
 
@@ -85,9 +97,9 @@ CLI or duplicate load-generation logic.
 
 ## Build and install
 
-The 0.2.x release line is validated with stable Rust 1.96.1 on macOS
-arm64, Linux, and Windows. Windows CI additionally covers PowerShell
-invocation, path handling, and socket recovery.
+`v0.3.0-rc.1` is validated with stable Rust 1.96.1 on macOS arm64, Linux, and
+Windows. Windows CI additionally covers PowerShell invocation, path handling,
+and socket recovery.
 
 Build or install directly from this checkout:
 
@@ -116,6 +128,7 @@ cargo run --release -- --requests 1000 --access-log ./access.log \
   --replay-order shuffle --seed 42 https://staging.example.com/
 cargo run --release -- --duration 30s --request-file ./requests.jsonl \
   --replay-order shuffle --seed 42 https://staging.example.com/
+cargo run --release -- --profile ./rload.yaml --assert 'p95 < 50ms'
 ```
 
 Ordinary requests use a curl-compatible subset while preserving wrk's option

@@ -14,14 +14,17 @@
 
 ## GitHub Release 文案
 
-### rload v0.2.4 — Replay reality. Find the limit.
+### rload v0.3.0-rc.1 — Reproducible load validation.
 
-rload is a Rust HTTP/1.1 load generator with wrk-compatible CLI semantics, native Nginx access-log replay, and structured JSONL request replay.
+rload is a Rust HTTP/1.1 load generator with wrk-compatible CLI semantics,
+native Nginx access-log replay, structured JSONL request replay, versioned YAML
+workloads, CI assertions, and deterministic offline HTML reports.
 
 ```sh
 cargo install rload
 rload --requests 1000 https://example.com/
 rload --duration 30s --access-log ./access.log --replay-order shuffle --seed 42 https://staging.example.com/
+rload --profile rload.yaml --assert 'p95 < 50ms'
 ```
 
 ## 社交媒体短文
@@ -32,7 +35,7 @@ Most load tests reduce production traffic to one URL. rload keeps wrk-compatible
 
 ## 发布顺序
 
-1. 发布 v0.2.4 Release，附安装方式、验证报告和可复制命令。
-2. 发布中文文章：`用 Nginx access log 重放真实流量：rload 入门`。
-3. 发布英文文章：`Replay production-shaped HTTP traffic with a tiny Rust binary`。
-4. 在 Rust、SRE、性能工程社区用可复现实验参与讨论。
+1. 已发布 v0.3.0-rc.1 Release，附安装方式、验证报告和可复制命令。
+2. 发布中文文章：`用 YAML profile 和 Nginx access log 验证真实流量`。
+3. 发布英文文章：`Reproducible load validation with YAML profiles and CI assertions`。
+4. 在 Rust、SRE、性能工程社区用可复现实验参与讨论，并明确该版本为 RC 发布。

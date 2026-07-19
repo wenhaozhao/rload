@@ -60,7 +60,7 @@ cargo install rload
 ### 方式 C：手动下载静态二进制文件
 直接在 [GitHub Releases](https://github.com/wenhaozhao/rload/releases) 页面下载对应系统的压缩包，解压并将其移动到系统的可执行路径（`PATH`）中：
 ```bash
-tar -xvf rload-v0.3.0-rc.1-x86_64-unknown-linux-musl.tar.gz
+tar -xvf rload-v0.3.0-rc.1-x86_64-unknown-linux-gnu.tar.gz
 sudo mv rload /usr/local/bin/
 ```
 
@@ -315,6 +315,7 @@ rload -c 100 --stages 10s:100,30s:1000,10s:100 https://target.com
 1. **`text`（默认选项）**：经典的类似于 `wrk` 的平铺文本，非常适合快速查看。
 2. **`--output-beauty`**：带有色彩标记、排版精美且按板块分隔的终端人性化界面。
 3. **`--output-format json`**：标准的机器可读单行/多行 JSON 文档，用于 CI/CD 自动化分析流水线、告警组件和监控看板。
+4. **`--output-html <PATH>`**：根据最终摘要生成确定性的独立离线报告。
 
 ### 命令行输出示例
 ```
