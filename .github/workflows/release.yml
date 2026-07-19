@@ -224,31 +224,32 @@ jobs:
           # Update website/index.html
           path_en = Path("website/index.html")
           text_en = path_en.read_text()
-          text_en = re.sub(r'Latest Stable v\d+\.\d+\.\d+', f'Latest Stable v{version}', text_en)
-          text_en = re.sub(r'rload v\d+\.\d+\.\d+', f'rload v{version}', text_en)
-          text_en = re.sub(r'rload \d+\.\d+\.\d+', f'rload {version}', text_en)
+          semver = r'\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?'
+          text_en = re.sub(rf'Latest (?:Stable|Release) v{semver}', f'Latest Stable v{version}', text_en)
+          text_en = re.sub(rf'rload v{semver}', f'rload v{version}', text_en)
+          text_en = re.sub(rf'rload {semver}', f'rload {version}', text_en)
           path_en.write_text(text_en)
           
           # Update website/index.zh-cn.html
           path_cn = Path("website/index.zh-cn.html")
           text_cn = path_cn.read_text()
-          text_cn = re.sub(r'最新稳定版 v\d+\.\d+\.\d+', f'最新稳定版 v{version}', text_cn)
-          text_cn = re.sub(r'rload v\d+\.\d+\.\d+', f'rload v{version}', text_cn)
-          text_cn = re.sub(r'rload \d+\.\d+\.\d+', f'rload {version}', text_cn)
+          text_cn = re.sub(rf'最新(?:稳定版|发布版) v{semver}', f'最新稳定版 v{version}', text_cn)
+          text_cn = re.sub(rf'rload v{semver}', f'rload v{version}', text_cn)
+          text_cn = re.sub(rf'rload {semver}', f'rload {version}', text_cn)
           path_cn.write_text(text_cn)
 
           # Update docs/user_guide.md
           path_g_en = Path("docs/user_guide.md")
           if path_g_en.exists():
               text_g_en = path_g_en.read_text()
-              text_g_en = re.sub(r'rload-v\d+\.\d+\.\d+', f'rload-v{version}', text_g_en)
+              text_g_en = re.sub(rf'rload-v{semver}', f'rload-v{version}', text_g_en)
               path_g_en.write_text(text_g_en)
 
           # Update docs/user_guide_zh-cn.md
           path_g_cn = Path("docs/user_guide_zh-cn.md")
           if path_g_cn.exists():
               text_g_cn = path_g_cn.read_text()
-              text_g_cn = re.sub(r'rload-v\d+\.\d+\.\d+', f'rload-v{version}', text_g_cn)
+              text_g_cn = re.sub(rf'rload-v{semver}', f'rload-v{version}', text_g_cn)
               path_g_cn.write_text(text_g_cn)
           PY
           git config user.name github-actions[bot]
