@@ -47,11 +47,11 @@ Lua 和 LuaJIT 兼容性被明确声明为不在此项目范围内。
 
 正式的准确性判定方法、原始结果目录以及判定门槛定义记录在 [`benchmarks/VALIDATION_2026-07-11.md`](benchmarks/VALIDATION_2026-07-11.md) 和 [`benchmarks/ACCURACY.md`](benchmarks/ACCURACY.md) 中。零延迟 P99 结果被有意指出，而非四舍五入为通过。
 
-已发布的 `v0.3.0-rc.1` 使用五次交替配对运行以及 1 ms 确定性延迟和抖动进行验证：相对 wrk 的 RPS MAE 为 0.497%，P90 MAE 为 1.525%，P99 中位数绝对误差为 3.476%，回放 RSS 增长斜率为每条目 242.1 B。详见 [`benchmarks/VALIDATION_2026-07-17_0.3.0-dev.md`](benchmarks/VALIDATION_2026-07-17_0.3.0-dev.md)。
+已发布的 `v0.3.0` 使用五次交替配对运行以及 1 ms 确定性延迟和抖动进行验证：相对 wrk 的 RPS MAE 为 0.497%，P90 MAE 为 1.525%，P99 中位数绝对误差为 3.476%，回放 RSS 增长斜率为每条目 242.1 B。详见 [`benchmarks/VALIDATION_2026-07-17_0.3.0-dev.md`](benchmarks/VALIDATION_2026-07-17_0.3.0-dev.md)。
 
 ### 功能覆盖范围
 
-| 能力 | wrk 4.2.0 | rload 0.3.0-rc.1 |
+| 能力 | wrk 4.2.0 | rload 0.3.0 |
 |---|---|---|
 | HTTP/1.1 静态请求负载 | 支持 | 支持 |
 | 具有连接复用的 HTTP 和 HTTPS | 支持 | 支持，包括 TLS 验证和 SNI |
@@ -72,7 +72,7 @@ Lua 和 LuaJIT 兼容性被明确声明为不在此项目范围内。
 
 ## 构建与安装
 
-`v0.3.0-rc.1` 已在 macOS arm64、Linux 和 Windows 上使用稳定的 Rust 1.96.1 进行了验证。Windows CI 还额外覆盖了 PowerShell 调用、路径处理和套接字恢复。
+`v0.3.0` 已在 macOS arm64、Linux 和 Windows 上使用稳定的 Rust 1.96.1 进行了验证。Windows CI 还额外覆盖了 PowerShell 调用、路径处理和套接字恢复。
 
 直接从此签出目录构建或安装：
 

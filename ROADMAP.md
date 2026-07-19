@@ -168,7 +168,7 @@ existing replay CLI.*
 
 ---
 
-### Phase 2: v0.3.0 - CI-first Test Profiles and Reports [Stable release pending]
+### Phase 2: v0.3.0 - CI-first Test Profiles and Reports [Released as v0.3.0]
 *Focus: Make an existing rload workload repeatable in local development and CI,
 with machine-readable pass/fail results and an offline report.*
 
@@ -249,10 +249,11 @@ truth.
 * No more than 3% throughput or 5% P99 regression in the fixed baseline; replay
   RSS remains within the existing documented gate.
 
-`v0.3.0-rc.1` passed the local package gate, three-way benchmark, replay RSS
-validation, and Linux/macOS/Windows CI on 2026-07-19. The stable `v0.3.0` tag
-is pending publication. HTTP/2, gRPC, distributed execution, and Prometheus
-remain deferred.
+`v0.3.0` was published on 2026-07-19 after the local package gate, three-way
+benchmark, replay RSS validation, and Linux/macOS/Windows CI passed. Release
+workflow `29685974747` published the crate, GitHub Release, four platform
+artifacts, Homebrew tap, website, and versioned user-guide references. HTTP/2,
+gRPC, distributed execution, and Prometheus remain deferred.
 
 #### Non-goals
 

@@ -1,6 +1,6 @@
 # rload 0.3.0 release validation — 2026-07-17
 
-Validated package version: `0.3.0` (stable tag pending publication).
+Validated package version: `0.3.0`.
 
 ## Local release gate
 
@@ -70,9 +70,8 @@ cross-platform CI gates. GitHub Actions run `29594622880` passed on Linux,
 macOS, and Windows; Windows also passed the path, socket-recovery, and
 PowerShell release-binary checks.
 
-The `v0.3.0-rc.1` release workflow `29672618267` published the release
-candidate and validated the crate, GitHub Release, Linux/macOS/Windows
-artifacts, Homebrew tap, website, and versioned user-guide publication path.
-The stable `v0.3.0` workflow outcome will be recorded here after its tag is
-published. The independent-server accuracy matrix remains a post-release
-follow-up.
+`v0.3.0` was published on 2026-07-19. Release workflow `29685974747`
+published the crate, created the GitHub Release, uploaded Linux, macOS (Intel
+and Apple Silicon), and Windows artifacts, updated the Homebrew tap, and
+deployed the website and versioned user-guide references. The independent-server
+accuracy matrix remains a post-release follow-up.

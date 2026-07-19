@@ -2,11 +2,10 @@
 
 ## Current status
 
-- The `v0.3.0` stable-release commit is ready to tag after the local release,
-  benchmark, and Linux/macOS/Windows CI gates passed for `v0.3.0-rc.1`. The
-  final tag must complete the crate, GitHub Release, precompiled-binary,
-  Homebrew-tap, and website-publication steps before this status is marked
-  released.
+- `rload` `v0.3.0` was published on 2026-07-19 after the local release,
+  benchmark, and Linux/macOS/Windows CI gates passed. Release workflow
+  `29685974747` published the crate, GitHub Release, precompiled binaries,
+  Homebrew tap, website, and versioned user-guide references successfully.
 - The package includes the standard license files and third-party notice.
 - The package metadata points to the public repository, homepage, and docs.rs.
 - `./scripts/release-check.sh` is the required local gate.
@@ -300,7 +299,7 @@ measurements and their cause or uncertainty assessment.
 - [x] Prepare and pass the local `v0.3.0-rc.1` package gate.
 - [x] Pass Linux, macOS, and Windows CI for `v0.3.0-rc.1`.
 - [x] Publish `v0.3.0-rc.1` and attach the cross-platform release artifacts.
-- [ ] Tag and publish the stable `v0.3.0` release, then archive its release
+- [x] Tag and publish the stable `v0.3.0` release, then archive its release
       documentation and promotion record.
 
 ## Automated release workflow
