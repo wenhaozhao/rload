@@ -46,7 +46,8 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     let mut request_schema = None;
     let mut skip_invalid_records = false;
     let mut replay_order = ReplayOrder::Sequential;
-    let mut replay_option_was_set = false;
+    let mut replay_order_was_set = false;
+    let mut seed_was_set = false;
     let mut seed = None;
     let mut replay_rate = None;
     let mut replay_timestamps = false;
@@ -135,7 +136,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                         ));
                     }
                 };
-                replay_option_was_set = true;
+                replay_order_was_set = true;
             }
             "--seed" => {
                 let value = args
@@ -146,7 +147,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                         .parse::<u64>()
                         .map_err(|_| format!("invalid replay seed: {value}"))?,
                 );
-                replay_option_was_set = true;
+                seed_was_set = true;
             }
             "--replay-rate" => {
                 let value = args
@@ -390,19 +391,19 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                 "jsonl" => request_file = Some(replay.path),
                 _ => unreachable!("profile format is validated before use"),
             }
-            if !replay_option_was_set {
-                if let Some(order) = replay.order {
-                    replay_order = match order.as_str() {
-                        "sequential" => ReplayOrder::Sequential,
-                        "shuffle" => ReplayOrder::Shuffle,
-                        "random" => ReplayOrder::Random,
-                        _ => {
-                            return Err(format!(
-                                "profile load_profile.log_replay.order must be sequential, shuffle, or random, got {order}"
-                            ));
-                        }
-                    };
-                }
+            if !replay_order_was_set && let Some(order) = replay.order {
+                replay_order = match order.as_str() {
+                    "sequential" => ReplayOrder::Sequential,
+                    "shuffle" => ReplayOrder::Shuffle,
+                    "random" => ReplayOrder::Random,
+                    _ => {
+                        return Err(format!(
+                            "profile load_profile.log_replay.order must be sequential, shuffle, or random, got {order}"
+                        ));
+                    }
+                };
+            }
+            if !seed_was_set {
                 seed = replay.seed;
             }
             if replay_rounds.is_none() {
@@ -435,7 +436,9 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
                     "rate" => replay_rate = pacing.rate,
                     "timestamp" => {
                         replay_timestamps = true;
-                        replay_speed = pacing.speed.unwrap_or(1.0);
+                        if !replay_speed_was_set {
+                            replay_speed = pacing.speed.unwrap_or(1.0);
+                        }
                     }
                     "stages" => {
                         stages = pacing
@@ -511,7 +514,7 @@ fn execute(args: impl Iterator<Item = String>) -> Result<(), String> {
     if !method_was_set && body_was_set {
         method = Method::Post;
     }
-    if replay_option_was_set && access_log.is_none() && request_file.is_none() {
+    if (replay_order_was_set || seed_was_set) && access_log.is_none() && request_file.is_none() {
         return Err("--replay-order and --seed require --access-log or --request-file".into());
     }
     if replay_rate.is_some() && access_log.is_none() && request_file.is_none() {

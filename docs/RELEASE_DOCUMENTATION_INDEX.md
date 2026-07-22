@@ -25,6 +25,7 @@ and prerelease status must match the intended product status.
 |---|---|---|---|
 | `CHANGELOG.md` | Release date, release status, and the final user-visible change summary. | None | Required |
 | `RELEASE_PLAN.md` | Current-release status, completed gates, tag/release outcome, and next release work. | None | Required |
+| `docs/QUALITY_ACCEPTANCE.md` | Consolidated functional, performance, stage-pacing, and release acceptance gates. | None | Required |
 | `ROADMAP.md` | Completed release status and the next planned phase. | None | Required |
 | `README.md` | Supported capability table, compatibility claims, validation line, and release references. | None | Required |
 | `README.zh-cn.md` | Chinese equivalent of the README updates. | None | Required |

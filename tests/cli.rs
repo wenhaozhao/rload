@@ -22,7 +22,7 @@ fn cli_prints_version_without_requiring_a_target() {
         .unwrap();
 
     assert!(output.status.success());
-    assert_eq!(String::from_utf8(output.stdout).unwrap(), "rload 0.3.0\n");
+    assert_eq!(String::from_utf8(output.stdout).unwrap(), "rload 0.3.1\n");
     assert!(output.stderr.is_empty());
 
     for arguments in [["--version", "--unknown"], ["--unknown", "--version"]] {
@@ -281,6 +281,157 @@ fn cli_loads_an_access_log_replay_profile() {
     assert_eq!(result["summary"]["completed_requests"], 1);
     assert_eq!(result["replay"]["configured_rounds"], 1);
     assert_eq!(result["replay"]["configured_rate"], 1000);
+}
+
+#[test]
+fn cli_replay_speed_overrides_timestamp_profile_pacing() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = Vec::new();
+        while !request.ends_with(b"\r\n\r\n") {
+            let mut byte = [0];
+            stream.read_exact(&mut byte).unwrap();
+            request.push(byte[0]);
+        }
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+            .unwrap();
+    });
+    let suffix = std::process::id();
+    let log = env::temp_dir().join(format!("rload-profile-speed-{suffix}.log"));
+    let profile = env::temp_dir().join(format!("rload-profile-speed-{suffix}.yaml"));
+    fs::write(
+        &log,
+        "127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] \"GET /profile HTTP/1.1\" 200 0\n",
+    )
+    .unwrap();
+    fs::write(
+        &profile,
+        format!(
+            "version: v1\ntarget:\n  url: http://{address}/\nrunner:\n  threads: 1\n  connections: 1\nload_profile:\n  mode: log_replay\n  log_replay:\n    path: {}\n    format: nginx\n    rounds: 1\n    pacing:\n      mode: timestamp\n      speed: 0.5\n",
+            log.display()
+        ),
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--profile",
+            profile.to_str().unwrap(),
+            "--replay-speed",
+            "2.0",
+        ])
+        .output()
+        .unwrap();
+    fs::remove_file(log).unwrap();
+    fs::remove_file(profile).unwrap();
+    server.join().unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .contains("Timestamp replay speed: 2.000x")
+    );
+}
+
+#[test]
+fn cli_seed_composes_with_profile_replay_order_for_jsonl() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        listener.set_nonblocking(true).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(1);
+        while Instant::now() < deadline {
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut request = Vec::new();
+                while !request.ends_with(b"\r\n\r\n") {
+                    let mut byte = [0];
+                    stream.read_exact(&mut byte).unwrap();
+                    request.push(byte[0]);
+                }
+                stream
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                    .unwrap();
+                return;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+    });
+    let suffix = std::process::id();
+    let requests = env::temp_dir().join(format!("rload-profile-seed-{suffix}.jsonl"));
+    let profile = env::temp_dir().join(format!("rload-profile-seed-{suffix}.yaml"));
+    fs::write(&requests, "{\"uri\":\"/profile\"}\n").unwrap();
+    fs::write(
+        &profile,
+        format!(
+            "version: v1\ntarget:\n  url: http://{address}/\nrunner:\n  threads: 1\n  connections: 1\nload_profile:\n  mode: log_replay\n  log_replay:\n    path: {}\n    format: jsonl\n    order: shuffle\n    rounds: 1\n",
+            requests.display()
+        ),
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args(["--profile", profile.to_str().unwrap(), "--seed", "42"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fs::remove_file(requests).unwrap();
+    fs::remove_file(profile).unwrap();
+    server.join().unwrap();
+}
+
+#[test]
+fn cli_replay_order_overrides_profile_order() {
+    let profile = env::temp_dir().join(format!("rload-profile-order-{}.yaml", std::process::id()));
+    fs::write(
+        &profile,
+        "version: v1\ntarget:\n  url: http://127.0.0.1:1/\nload_profile:\n  mode: log_replay\n  log_replay:\n    path: missing.log\n    format: nginx\n    order: sequential\n    pacing:\n      mode: timestamp\n",
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--profile",
+            profile.to_str().unwrap(),
+            "--replay-order",
+            "shuffle",
+        ])
+        .output()
+        .unwrap();
+    fs::remove_file(profile).unwrap();
+
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8(output.stderr)
+            .unwrap()
+            .contains("--replay-timestamps requires sequential replay order")
+    );
+}
+
+#[test]
+fn cli_seed_requires_a_replay_input() {
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args(["--seed", "42", "http://127.0.0.1:1/"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8(output.stderr)
+            .unwrap()
+            .contains("--replay-order and --seed require --access-log or --request-file")
+    );
 }
 
 #[test]
@@ -1235,6 +1386,119 @@ fn cli_applies_rate_stages_to_an_ordinary_custom_request() {
             .starts_with(b"POST /items HTTP/1.1\r\n")
     );
     assert!(String::from_utf8_lossy(&output.stdout).contains("Rate stages:"));
+}
+
+fn assert_stage_rps_within_five_percent(arguments: &[String]) {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut arrivals = Vec::new();
+        loop {
+            let mut request = Vec::new();
+            loop {
+                let mut byte = [0];
+                if stream.read_exact(&mut byte).is_err() {
+                    return arrivals;
+                }
+                request.push(byte[0]);
+                if request.ends_with(b"\r\n\r\n") {
+                    break;
+                }
+            }
+            arrivals.push(Instant::now());
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        }
+    });
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args(arguments)
+        .arg(format!("http://{address}/stages"))
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let arrivals = server.join().unwrap();
+    assert!(
+        !arrivals.is_empty(),
+        "rload did not send any stage requests"
+    );
+    let started = arrivals[0];
+    for (index, expected_rps) in [20_u64, 60, 30].into_iter().enumerate() {
+        let lower = Duration::from_secs((index * 10) as u64);
+        let upper = lower + Duration::from_secs(10);
+        let observed_count = arrivals
+            .iter()
+            .filter(|arrival| {
+                let elapsed = arrival.duration_since(started);
+                elapsed >= lower && elapsed < upper
+            })
+            .count() as u64;
+        let expected_count = expected_rps * 10;
+        let observed_rps = observed_count as f64 / 10.0;
+        let count_deviation = observed_count.abs_diff(expected_count);
+        assert!(
+            count_deviation <= expected_count / 20,
+            "stage {}: expected {expected_rps} RPS, observed {observed_rps:.1} RPS ({count_deviation} request deviation)",
+            index + 1,
+        );
+    }
+}
+
+#[test]
+fn cli_keeps_ordinary_stage_rps_within_five_percent() {
+    assert_stage_rps_within_five_percent(&[
+        "--duration".into(),
+        "30s".into(),
+        "--connections".into(),
+        "1".into(),
+        "--stages".into(),
+        "10s:20,10s:60,10s:30".into(),
+    ]);
+}
+
+#[test]
+fn cli_keeps_nginx_replay_stage_rps_within_five_percent() {
+    let path = env::temp_dir().join(format!("rload-stage-rps-{}.log", std::process::id()));
+    fs::write(&path, "127.0.0.1 - - [date] \"GET / HTTP/1.1\" 200 0\n").unwrap();
+
+    assert_stage_rps_within_five_percent(&[
+        "--duration".into(),
+        "30s".into(),
+        "--connections".into(),
+        "1".into(),
+        "--access-log".into(),
+        path.to_string_lossy().into_owned(),
+        "--replay-stages".into(),
+        "10s:20,10s:60,10s:30".into(),
+    ]);
+    fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn cli_keeps_jsonl_replay_stage_rps_within_five_percent() {
+    let path = env::temp_dir().join(format!("rload-stage-rps-{}.jsonl", std::process::id()));
+    fs::write(&path, "{\"uri\":\"/\"}\n").unwrap();
+
+    assert_stage_rps_within_five_percent(&[
+        "--duration".into(),
+        "30s".into(),
+        "--connections".into(),
+        "1".into(),
+        "--request-file".into(),
+        path.to_string_lossy().into_owned(),
+        "--stages".into(),
+        "10s:20,10s:60,10s:30".into(),
+        "--replay-order".into(),
+        "shuffle".into(),
+    ]);
+    fs::remove_file(path).unwrap();
 }
 
 #[test]

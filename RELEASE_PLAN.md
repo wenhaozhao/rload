@@ -2,6 +2,12 @@
 
 ## Current status
 
+- `rload` `v0.3.1` was published on 2026-07-22. It fixes YAML-profile replay
+  precedence and adds the timed-stage RPS quality gate. The local release,
+  package, cross-platform CI, and stage-accuracy gates pass.
+- Release workflow `29908475933` published the crate, GitHub Release, and
+  Linux/macOS/Windows archives. Follow-up CI run `29911120644` passed on all
+  three operating systems after making the stage gate portable.
 - `rload` `v0.3.0` was published on 2026-07-19 after the local release,
   benchmark, and Linux/macOS/Windows CI gates passed. Release workflow
   `29685974747` published the crate, GitHub Release, precompiled binaries,

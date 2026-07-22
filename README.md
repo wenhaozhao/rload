@@ -6,11 +6,16 @@
 
 Contributions and reviews must follow [CODING_STANDARDS.md](CODING_STANDARDS.md),
 including the CLI option interaction checklist.
+Release decisions use the consolidated
+[quality acceptance standard](./docs/QUALITY_ACCEPTANCE.md).
 
 English | [中文](./README.zh-cn.md)
 
 `rload` is a Rust HTTP load generator with wrk-compatible CLI semantics,
 Nginx access-log replay, and structured JSONL request replay.
+
+The current stable release is `v0.3.1`; release evidence is recorded in
+[`benchmarks/VALIDATION_2026-07-22_0.3.1.md`](benchmarks/VALIDATION_2026-07-22_0.3.1.md).
 
 Official website: [wenhaozhao.github.io/rload](https://wenhaozhao.github.io/rload/)
 User Guide: [English User Guide](./docs/user_guide.md) | [中文使用手册](./docs/user_guide_zh-cn.md)
@@ -70,7 +75,7 @@ was 1.525%, P99 median absolute error was 3.476%, and replay RSS scaling was
 
 ### Functional coverage
 
-| Capability | wrk 4.2.0 | rload 0.3.0 |
+| Capability | wrk 4.2.0 | rload 0.3.1 |
 |---|---|---|
 | HTTP/1.1 static request load | Yes | Yes |
 | HTTP and HTTPS with connection reuse | Yes | Yes, including TLS verification and SNI |
@@ -97,7 +102,7 @@ CLI or duplicate load-generation logic.
 
 ## Build and install
 
-`v0.3.0` is validated with stable Rust 1.96.1 on macOS arm64, Linux, and
+`v0.3.1` is validated with stable Rust 1.96.1 on macOS arm64, Linux, and
 Windows. Windows CI additionally covers PowerShell invocation, path handling,
 and socket recovery.
 

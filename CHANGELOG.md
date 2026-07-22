@@ -4,6 +4,22 @@ All notable changes to rload are documented here.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-22
+
+### Fixed
+
+- Preserve an explicit `--replay-speed` when a timestamp-paced YAML profile
+  also defines a playback speed.
+- Allow a CLI `--seed` to compose with the replay order defined by a YAML
+  profile, while retaining CLI `--replay-order` precedence.
+
+### Quality
+
+- Add a consolidated quality acceptance standard and release-gate coverage for
+  `--stages` RPS accuracy. The gate independently measures ordinary, Nginx
+  access-log replay, and JSONL replay at a local target across three timed
+  stages.
+
 ## [0.3.0] - 2026-07-19
 
 ### Added
