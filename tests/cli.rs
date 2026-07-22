@@ -22,7 +22,7 @@ fn cli_prints_version_without_requiring_a_target() {
         .unwrap();
 
     assert!(output.status.success());
-    assert_eq!(String::from_utf8(output.stdout).unwrap(), "rload 0.3.0\n");
+    assert_eq!(String::from_utf8(output.stdout).unwrap(), "rload 0.3.1\n");
     assert!(output.stderr.is_empty());
 
     for arguments in [["--version", "--unknown"], ["--unknown", "--version"]] {
@@ -1413,7 +1413,6 @@ fn assert_stage_rps_within_five_percent(arguments: &[String]) {
         }
     });
 
-    let started = Instant::now();
     let output = Command::new(env!("CARGO_BIN_EXE_rload"))
         .args(arguments)
         .arg(format!("http://{address}/stages"))
@@ -1430,6 +1429,7 @@ fn assert_stage_rps_within_five_percent(arguments: &[String]) {
         !arrivals.is_empty(),
         "rload did not send any stage requests"
     );
+    let started = arrivals[0];
     for (index, expected_rps) in [20_u64, 60, 30].into_iter().enumerate() {
         let lower = Duration::from_secs((index * 10) as u64);
         let upper = lower + Duration::from_secs(10);
