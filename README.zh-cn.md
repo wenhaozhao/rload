@@ -8,6 +8,8 @@
 
 `rload` 是一个 Rust 编写的 HTTP 压测/负载生成工具，具有与 wrk 兼容的 CLI 语义、Nginx 访问日志回放以及结构化 JSONL 请求回放功能。
 
+当前稳定版本为 `v0.3.1`；发布验收记录见 [`benchmarks/VALIDATION_2026-07-22_0.3.1.md`](benchmarks/VALIDATION_2026-07-22_0.3.1.md)。
+
 官方网站: [wenhaozhao.github.io/rload](https://wenhaozhao.github.io/rload/)
 使用手册: [English User Guide](./docs/user_guide.md) | [中文使用手册](./docs/user_guide_zh-cn.md)
 
@@ -51,7 +53,7 @@ Lua 和 LuaJIT 兼容性被明确声明为不在此项目范围内。
 
 ### 功能覆盖范围
 
-| 能力 | wrk 4.2.0 | rload 0.3.0 |
+| 能力 | wrk 4.2.0 | rload 0.3.1 |
 |---|---|---|
 | HTTP/1.1 静态请求负载 | 支持 | 支持 |
 | 具有连接复用的 HTTP 和 HTTPS | 支持 | 支持，包括 TLS 验证和 SNI |
@@ -72,7 +74,7 @@ Lua 和 LuaJIT 兼容性被明确声明为不在此项目范围内。
 
 ## 构建与安装
 
-`v0.3.0` 已在 macOS arm64、Linux 和 Windows 上使用稳定的 Rust 1.96.1 进行了验证。Windows CI 还额外覆盖了 PowerShell 调用、路径处理和套接字恢复。
+`v0.3.1` 已在 macOS arm64、Linux 和 Windows 上使用稳定的 Rust 1.96.1 进行了验证。Windows CI 还额外覆盖了 PowerShell 调用、路径处理和套接字恢复。
 
 直接从此签出目录构建或安装：
 

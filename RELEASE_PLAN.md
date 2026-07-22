@@ -2,13 +2,12 @@
 
 ## Current status
 
-- `rload` `v0.3.1` is prepared for release on the `codex/v0.3.1` branch. It
-  fixes YAML-profile replay precedence and adds the timed-stage RPS quality
-  gate. The local release, package, and stage-accuracy gates pass.
-- Before publishing, push the release branch, create tag `v0.3.1`, and require
-  the release workflow to pass its Linux, macOS, and Windows artifact builds.
-  Complete the post-release documentation handoff only after that workflow has
-  published the crate and GitHub Release.
+- `rload` `v0.3.1` was published on 2026-07-22. It fixes YAML-profile replay
+  precedence and adds the timed-stage RPS quality gate. The local release,
+  package, cross-platform CI, and stage-accuracy gates pass.
+- Release workflow `29908475933` published the crate, GitHub Release, and
+  Linux/macOS/Windows archives. Follow-up CI run `29911120644` passed on all
+  three operating systems after making the stage gate portable.
 - `rload` `v0.3.0` was published on 2026-07-19 after the local release,
   benchmark, and Linux/macOS/Windows CI gates passed. Release workflow
   `29685974747` published the crate, GitHub Release, precompiled binaries,
