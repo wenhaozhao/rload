@@ -6,6 +6,8 @@
 
 Contributions and reviews must follow [CODING_STANDARDS.md](CODING_STANDARDS.md),
 including the CLI option interaction checklist.
+Release decisions use the consolidated
+[quality acceptance standard](./docs/QUALITY_ACCEPTANCE.md).
 
 English | [中文](./README.zh-cn.md)
 
