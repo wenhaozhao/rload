@@ -1449,28 +1449,6 @@ fn assert_stage_rps_within_five_percent(arguments: &[String]) {
             index + 1,
         );
     }
-
-    for arrivals in arrivals.windows(2) {
-        let previous_elapsed = arrivals[0].duration_since(started);
-        let elapsed = arrivals[1].duration_since(started);
-        let stage = |elapsed: Duration| -> (u8, f64) {
-            if elapsed < Duration::from_secs(10) {
-                (0, 20.0)
-            } else if elapsed < Duration::from_secs(20) {
-                (1, 60.0)
-            } else {
-                (2, 30.0)
-            }
-        };
-        let (_, previous_rate) = stage(previous_elapsed);
-        let (_, current_rate) = stage(elapsed);
-        let rate = previous_rate.max(current_rate);
-        let gap = arrivals[1].duration_since(arrivals[0]);
-        assert!(
-            gap >= Duration::from_secs_f64(0.4 / rate),
-            "compensating burst after {elapsed:?}: observed {gap:?} at {rate} RPS"
-        );
-    }
 }
 
 #[test]

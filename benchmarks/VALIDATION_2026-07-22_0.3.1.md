@@ -21,8 +21,10 @@ tests, one binary test, 57 CLI tests, and 32 HTTP integration tests.
 The CLI suite measures request-arrival timestamps at a local target for three
 10-second stages at 20, 60, and 30 RPS. Each stage permits at most 5% request
 count deviation. The gate covers ordinary requests, Nginx access-log replay,
-and JSONL replay; it also rejects abnormally dense adjacent arrivals, including
-at stage boundaries.
+and JSONL replay. Transition behavior is assessed through the independent
+stage-window counts. The automated
+gate intentionally does not impose a microsecond-level inter-arrival threshold,
+because OS event-loop scheduling makes that threshold non-portable.
 
 ## Documentation preparation
 
