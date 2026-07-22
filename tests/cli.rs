@@ -284,6 +284,114 @@ fn cli_loads_an_access_log_replay_profile() {
 }
 
 #[test]
+fn cli_replay_speed_overrides_timestamp_profile_pacing() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = Vec::new();
+        while !request.ends_with(b"\r\n\r\n") {
+            let mut byte = [0];
+            stream.read_exact(&mut byte).unwrap();
+            request.push(byte[0]);
+        }
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+            .unwrap();
+    });
+    let suffix = std::process::id();
+    let log = env::temp_dir().join(format!("rload-profile-speed-{suffix}.log"));
+    let profile = env::temp_dir().join(format!("rload-profile-speed-{suffix}.yaml"));
+    fs::write(
+        &log,
+        "127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] \"GET /profile HTTP/1.1\" 200 0\n",
+    )
+    .unwrap();
+    fs::write(
+        &profile,
+        format!(
+            "version: v1\ntarget:\n  url: http://{address}/\nrunner:\n  threads: 1\n  connections: 1\nload_profile:\n  mode: log_replay\n  log_replay:\n    path: {}\n    format: nginx\n    rounds: 1\n    pacing:\n      mode: timestamp\n      speed: 0.5\n",
+            log.display()
+        ),
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args([
+            "--profile",
+            profile.to_str().unwrap(),
+            "--replay-speed",
+            "2.0",
+        ])
+        .output()
+        .unwrap();
+    fs::remove_file(log).unwrap();
+    fs::remove_file(profile).unwrap();
+    server.join().unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .contains("Timestamp replay speed: 2.000x")
+    );
+}
+
+#[test]
+fn cli_seed_composes_with_profile_replay_order_for_jsonl() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        listener.set_nonblocking(true).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(1);
+        while Instant::now() < deadline {
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut request = Vec::new();
+                while !request.ends_with(b"\r\n\r\n") {
+                    let mut byte = [0];
+                    stream.read_exact(&mut byte).unwrap();
+                    request.push(byte[0]);
+                }
+                stream
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                    .unwrap();
+                return;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+    });
+    let suffix = std::process::id();
+    let requests = env::temp_dir().join(format!("rload-profile-seed-{suffix}.jsonl"));
+    let profile = env::temp_dir().join(format!("rload-profile-seed-{suffix}.yaml"));
+    fs::write(&requests, "{\"uri\":\"/profile\"}\n").unwrap();
+    fs::write(
+        &profile,
+        format!(
+            "version: v1\ntarget:\n  url: http://{address}/\nrunner:\n  threads: 1\n  connections: 1\nload_profile:\n  mode: log_replay\n  log_replay:\n    path: {}\n    format: jsonl\n    order: shuffle\n    rounds: 1\n",
+            requests.display()
+        ),
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rload"))
+        .args(["--profile", profile.to_str().unwrap(), "--seed", "42"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fs::remove_file(requests).unwrap();
+    fs::remove_file(profile).unwrap();
+    server.join().unwrap();
+}
+
+#[test]
 fn cli_outputs_machine_readable_json_summary() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
